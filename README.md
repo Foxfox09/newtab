@@ -1,5 +1,7 @@
 # Пошукач — Нова вкладка / Search — New Tab
 
+# завантаження
+
 # Українська
 1. Скачайте або скопіюйте папку `newtab`.
 2. Відкрийте браузер (Chrome / Edge) → `chrome://extensions` або `edge://extensions`.
@@ -12,6 +14,8 @@
    - `//addicon <домен>` — додати іконку сайту.
    - `//save` — примусово зберегти налаштування.
    - `//clear` — очистити фон і іконки.
+
+# download
 
 # English
 1. Download or copy the `newtab` folder.
