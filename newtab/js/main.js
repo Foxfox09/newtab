@@ -60,12 +60,23 @@ function dbClear() {
 const COMMANDS = [
   {key:'//bg', short:'Встановити фон (URL або файл)', desc:'//bg <URL> — встановлює фон з URL (jpg, png, mp4). Якщо URL не вказано, відкриється вибір файлу.'},
   {key:'//addicon', short:'Додати іконку сайту', desc:'//addicon <URL_сайту> — додає іконку-посилання на сайт (напр., //addicon google.com).'},
-  {key:'//save', short:'Примусово зберегти', desc:'////save — примусово зберігає поточні налаштування (зазвичай не потрібно).'},
-  {key:'//clear', short:'Очистити', desc:'//clear — очищує фон і елементи.'}
-//   togglecmd (D)
+  {key:'//save', short:'Примусово зберегти', desc:'//save — примусово зберігає поточні налаштування.'},
+  {key:'//clear', short:'Очистити', desc:'//clear — очищує фон і елементи.'},
+  {key:'//textcolor', short:'Встановити кольір тексту', desc:'//textcolor <hex або назва> — напр., //textcolor #000000 або //textcolor red'},
+  {key:'//setsearch', short:'Встановити пошук за замовчуванням', desc:'//setsearch <keyword|url_template> — приклад: //setsearch google або //setsearch https://duckduckgo.com/?q=%s'}
 ];
 
-const state = { bgType:null, bgData:null, items:[], selectedCmdIndex: -1, currentDisplayedSuggestions: [] }; // Додано selectedCmdIndex та currentDisplayedSuggestions
+const state = {
+  bgType: null,
+  bgData: null,
+  items: [],
+  selectedCmdIndex: -1,
+  currentDisplayedSuggestions: [],
+  inputColorMode: 'dark',
+  customInputColor: null,
+  searchEngineName: 'google',
+  searchEngineTemplate: 'https://www.google.com/search?q=%s'
+};
 const bgImg = document.getElementById('bgImg');
 const bgVideo = document.getElementById('bgVideo');
 const board = document.getElementById('board');
@@ -98,6 +109,88 @@ async function saveState(){
 }
 
 
+function setInputColor(isDarkBg){
+  if(isDarkBg){
+    document.documentElement.style.setProperty('--input-color','#ffffff');
+    document.documentElement.style.setProperty('--input-placeholder','rgba(255,255,255,0.75)');
+    document.documentElement.style.setProperty('--input-text-shadow','0 1px 2px rgba(0,0,0,0.6)');
+  } else {
+    document.documentElement.style.setProperty('--input-color','#111111');
+    document.documentElement.style.setProperty('--input-placeholder','rgba(0,0,0,0.55)');
+    document.documentElement.style.setProperty('--input-text-shadow','0 1px 2px rgba(255,255,255,0.7)');
+  }
+}
+
+async function estimateImageBrightness(src){
+  return new Promise(resolve=>{
+    try {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => {
+        try {
+          const w = 32, h = 32;
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const data = ctx.getImageData(0,0,w,h).data;
+          let total = 0, count = 0;
+          for(let i=0;i<data.length;i+=4){
+            const r = data[i], g = data[i+1], b = data[i+2];
+            // luminance
+            const lum = 0.299*r + 0.587*g + 0.114*b;
+            total += lum;
+            count++;
+          }
+          const avg = total / count / 255; // 0..1
+          resolve(avg);
+        } catch(e){
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    } catch(e){
+      resolve(null);
+    }
+  });
+}
+
+async function adjustInputColorForSrc(src){
+  if(!src) return;
+  const avg = await estimateImageBrightness(src);
+  if(avg === null){
+    // не вдалося оцінити — залишаємо дефолт
+    return;
+  }
+  // якщо середня яскравість висока — фон світлий -> ставимо темний текст
+  setInputColor(!(avg < 0.6)); // avg<0.6 -> темний фон -> білий текст
+}
+
+// Змініть applyBackground(), викликаючи adjustInputColorForSrc коли є зображення/відео
+function isHexColor(c){
+  return /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c);
+}
+
+function hexToRgba(hex, alpha){
+  hex = hex.replace('#','');
+  if(hex.length === 3) hex = hex.split('').map(ch=>ch+ch).join('');
+  if(hex.length === 8) hex = hex.slice(0,6); // ignore alpha in hex if provided
+  const r = parseInt(hex.slice(0,2),16);
+  const g = parseInt(hex.slice(2,4),16);
+  const b = parseInt(hex.slice(4,6),16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function applyCustomTextColor(color){
+  document.documentElement.style.setProperty('--input-color', color);
+  if(isHexColor(color)){
+    document.documentElement.style.setProperty('--input-placeholder', hexToRgba(color, 0.65));
+  } else {
+    document.documentElement.style.setProperty('--input-placeholder', color);
+  }
+}
+
 function applyBackground(){
   let src = state.bgData;
   if (state.bgData instanceof File) {
@@ -107,11 +200,47 @@ function applyBackground(){
   if(state.bgType==='image'){
     bgVideo.style.display='none'; if(!bgVideo.paused) bgVideo.pause();
     bgImg.src = src; bgImg.style.display='block';
+
+    if(state.inputColorMode === 'auto'){
+      adjustInputColorForSrc(src);
+    } else if(state.inputColorMode === 'dark'){
+      setInputColor(true);
+    } else if(state.inputColorMode === 'light'){
+      setInputColor(false);
+    } else if(state.inputColorMode === 'custom' && state.customInputColor){
+      applyCustomTextColor(state.customInputColor);
+    }
   } else if(state.bgType==='video'){
     bgImg.style.display='none';
     bgVideo.src = src; bgVideo.style.display='block'; bgVideo.play();
+
+    setTimeout(async ()=>{
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 32; canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(bgVideo, 0, 0, 32, 32);
+        const imgSrc = canvas.toDataURL();
+        if(state.inputColorMode === 'auto'){
+          await adjustInputColorForSrc(imgSrc);
+        } else if(state.inputColorMode === 'dark'){
+          setInputColor(true);
+        } else if(state.inputColorMode === 'light'){
+          setInputColor(false);
+        } else if(state.inputColorMode === 'custom' && state.customInputColor){
+          applyCustomTextColor(state.customInputColor);
+        }
+      } catch(e){}
+    }, 300);
   } else {
     bgImg.style.display='none'; bgVideo.style.display='none';
+    if(state.inputColorMode === 'light'){
+      setInputColor(false);
+    } else if(state.inputColorMode === 'custom' && state.customInputColor){
+      applyCustomTextColor(state.customInputColor);
+    } else {
+      setInputColor(true);
+    }
   }
 }
 
@@ -342,9 +471,9 @@ function runCmd(raw){
 
   if(!parsed){
     if (raw.trim()) {
-        const q = encodeURIComponent(raw);
-        saveSearch(raw.trim()); // Зберігаємо пошуковий запит
-        window.open('https://www.google.com/search?q='+q,'_self'); // _self для розширень
+        const q = raw;
+        saveSearch(raw.trim());
+        window.open(buildSearchUrl(q), '_self');
     }
   } else {
     const parts = parsed.parts;
@@ -380,16 +509,45 @@ function runCmd(raw){
       state.items=[];
       renderBoard();
       dbClear();
-      localStorage.removeItem(SEARCH_KEY); // Очищаємо історію пошуку
-      localStorage.removeItem(SITE_KEY); // Очищаємо часті сайти
+      localStorage.removeItem(SEARCH_KEY);
+      localStorage.removeItem(SITE_KEY);
+    } else if(cmd==='//textcolor'){
+      const color = parts[1];
+      if(!color){ alert('Вкажіть колір: //textcolor #000000 або //textcolor red'); }
+      else {
+        state.inputColorMode = 'custom';
+        state.customInputColor = color;
+        applyCustomTextColor(color);
+        saveState();
+        alert('Колір тексту встановлено: ' + color);
+      }
+    } else if(cmd==='//setsearch'){
+      const param = parts.slice(1).join(' ').trim();
+      if(!param){
+        alert('Використання: //setsearch <keyword|url_template>. Приклади: //setsearch google або //setsearch https://duckduckgo.com/?q=%s');
+      } else {
+        const known = applyKnownSearchKeyword(param);
+        if(known){
+          state.searchEngineName = known.name;
+          state.searchEngineTemplate = known.template;
+          saveState();
+          alert('Пошукова система встановлена: ' + known.name);
+        } else {
+          // accept template url - ensure %s present or will append q
+          state.searchEngineName = 'custom';
+          state.searchEngineTemplate = param;
+          saveState();
+          alert('Пошукова система встановлена (custom). Використовується шаблон: ' + param);
+        }
+      }
     } else {
       alert('Невідома команда.');
     }
   }
 
   query.value = '';
-  cmdList.style.display = 'none'; // Приховуємо підказки після виконання команди/пошуку
-  query.dispatchEvent(new Event('input', { bubbles: true })); // Запускаємо input, щоб очистити підказки
+  cmdList.style.display = 'none';
+  query.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 /* file input handling */
@@ -420,7 +578,21 @@ function createItemDOM(it){
   img.src = it.iconUrl;
   img.alt = 'icon';
 
+  const del = document.createElement('button');
+  del.className = 'delete-btn';
+  del.type = 'button';
+  del.title = 'Видалити';
+  del.innerText = '✕';
+  del.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = it.id;
+    state.items = state.items.filter(x => x.id !== id);
+    renderBoard();
+    saveState();
+  });
+
   el.appendChild(img);
+  el.appendChild(del);
   board.appendChild(el);
 }
 
@@ -525,3 +697,35 @@ const resizeObserver = new ResizeObserver(() => {
     }
 });
 resizeObserver.observe(query);
+
+function applyKnownSearchKeyword(k){
+  const key = (k || '').toLowerCase();
+  if(['google','g','gg'].includes(key)) return {name:'google', template:'https://www.google.com/search?q=%s'};
+  if(['duckduckgo','ddg','duck'].includes(key)) return {name:'duckduckgo', template:'https://duckduckgo.com/?q=%s'};
+  if(['bing','ms'].includes(key)) return {name:'bing', template:'https://www.bing.com/search?q=%s'};
+  if(['yandex','ya'].includes(key)) return {name:'yandex', template:'https://yandex.com/search/?text=%s'};
+  if(['brave'].includes(key)) return {name:'brave', template:'https://search.brave.com/search?q=%s'};
+  if(['Qwant', 'q', 'qw' ].includes(key)) return {name:'Qwant', template:'https://www.qwant.com/?q=%s'};
+  return null;
+}
+
+function buildSearchUrl(q){
+  const tmpl = (state.searchEngineTemplate || '').trim();
+  const encoded = encodeURIComponent(q || '');
+  if(!tmpl) return `https://www.google.com/search?q=${encoded}`;
+  if(tmpl.includes('%s')) return tmpl.replace(/%s/g, encoded);
+  if(tmpl.includes('{q}')) return tmpl.replace(/\{q\}/g, encoded);
+  try{
+    const u = new URL(tmpl);
+    if(u.search) {
+      // append q param preserving existing params
+      const sep = u.search.endsWith('&') ? '' : '&';
+      return tmpl + sep + 'q=' + encoded;
+    } else {
+      u.search = '?q=' + encoded;
+      return u.toString();
+    }
+  }catch(e){
+    return tmpl + (tmpl.includes('?') ? '&' : '?') + 'q=' + encoded;
+  }
+}
