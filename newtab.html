@@ -140,9 +140,32 @@
     touch-action: manipulation; 
     -webkit-user-select: none;
     user-select: none;
+    position: relative; /* added for delete button */
   }
   .icon-wrapper:active { cursor: grabbing; }
   .icon-wrapper:hover { transform: scale(1.1); box-shadow: 0 12px 25px rgba(0,0,0,0.4); }
+  .delete-btn{
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.5);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    line-height: 1;
+    border: none;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .12s, transform .08s;
+    padding: 0;
+  }
+  .icon-wrapper:hover .delete-btn{ opacity: 1; }
+  .delete-btn:active{ transform: scale(.95); }
   .sortable-ghost {
     opacity: 0.4 !important;
     transform: scale(1.05);

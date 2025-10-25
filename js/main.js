@@ -548,7 +548,21 @@ function createItemDOM(it){
   img.src = it.iconUrl;
   img.alt = 'icon';
 
+  const del = document.createElement('button');
+  del.className = 'delete-btn';
+  del.type = 'button';
+  del.title = 'Видалити';
+  del.innerText = '✕';
+  del.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const id = it.id;
+    state.items = state.items.filter(x => x.id !== id);
+    renderBoard();
+    saveState();
+  });
+
   el.appendChild(img);
+  el.appendChild(del);
   board.appendChild(el);
 }
 
