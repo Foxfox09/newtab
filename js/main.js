@@ -62,10 +62,21 @@ const COMMANDS = [
   {key:'//addicon', short:'Додати іконку сайту', desc:'//addicon <URL_сайту> — додає іконку-посилання на сайт (напр., //addicon google.com).'},
   {key:'//save', short:'Примусово зберегти', desc:'//save — примусово зберігає поточні налаштування.'},
   {key:'//clear', short:'Очистити', desc:'//clear — очищує фон і елементи.'},
-  {key:'//textcolor', short:'Встановити кольір тексту', desc:'//textcolor <hex або назва> — напр., //textcolor #000000 або //textcolor red'}
+  {key:'//textcolor', short:'Встановити кольір тексту', desc:'//textcolor <hex або назва> — напр., //textcolor #000000 або //textcolor red'},
+  {key:'//setsearch', short:'Встановити пошук за замовчуванням', desc:'//setsearch <keyword|url_template> — приклад: //setsearch google або //setsearch https://duckduckgo.com/?q=%s'}
 ];
 
-const state = { bgType:null, bgData:null, items:[], selectedCmdIndex: -1, currentDisplayedSuggestions: [], inputColorMode: 'dark', customInputColor: null };
+const state = {
+  bgType: null,
+  bgData: null,
+  items: [],
+  selectedCmdIndex: -1,
+  currentDisplayedSuggestions: [],
+  inputColorMode: 'dark',
+  customInputColor: null,
+  searchEngineName: 'google',
+  searchEngineTemplate: 'https://www.google.com/search?q=%s'
+};
 const bgImg = document.getElementById('bgImg');
 const bgVideo = document.getElementById('bgVideo');
 const board = document.getElementById('board');
@@ -460,9 +471,9 @@ function runCmd(raw){
 
   if(!parsed){
     if (raw.trim()) {
-        const q = encodeURIComponent(raw);
+        const q = raw;
         saveSearch(raw.trim());
-        window.open('https://www.google.com/search?q='+q,'_self');
+        window.open(buildSearchUrl(q), '_self');
     }
   } else {
     const parts = parsed.parts;
@@ -509,6 +520,25 @@ function runCmd(raw){
         applyCustomTextColor(color);
         saveState();
         alert('Колір тексту встановлено: ' + color);
+      }
+    } else if(cmd==='//setsearch'){
+      const param = parts.slice(1).join(' ').trim();
+      if(!param){
+        alert('Використання: //setsearch <keyword|url_template>. Приклади: //setsearch google або //setsearch https://duckduckgo.com/?q=%s');
+      } else {
+        const known = applyKnownSearchKeyword(param);
+        if(known){
+          state.searchEngineName = known.name;
+          state.searchEngineTemplate = known.template;
+          saveState();
+          alert('Пошукова система встановлена: ' + known.name);
+        } else {
+          // accept template url - ensure %s present or will append q
+          state.searchEngineName = 'custom';
+          state.searchEngineTemplate = param;
+          saveState();
+          alert('Пошукова система встановлена (custom). Використовується шаблон: ' + param);
+        }
       }
     } else {
       alert('Невідома команда.');
@@ -667,3 +697,35 @@ const resizeObserver = new ResizeObserver(() => {
     }
 });
 resizeObserver.observe(query);
+
+function applyKnownSearchKeyword(k){
+  const key = (k || '').toLowerCase();
+  if(['google','g','gg'].includes(key)) return {name:'google', template:'https://www.google.com/search?q=%s'};
+  if(['duckduckgo','ddg','duck'].includes(key)) return {name:'duckduckgo', template:'https://duckduckgo.com/?q=%s'};
+  if(['bing','ms'].includes(key)) return {name:'bing', template:'https://www.bing.com/search?q=%s'};
+  if(['yandex','ya'].includes(key)) return {name:'yandex', template:'https://yandex.com/search/?text=%s'};
+  if(['brave'].includes(key)) return {name:'brave', template:'https://search.brave.com/search?q=%s'};
+  if(['Qwant', 'q', 'qw' ].includes(key)) return {name:'Qwant', template:'https://www.qwant.com/?q=%s'};
+  return null;
+}
+
+function buildSearchUrl(q){
+  const tmpl = (state.searchEngineTemplate || '').trim();
+  const encoded = encodeURIComponent(q || '');
+  if(!tmpl) return `https://www.google.com/search?q=${encoded}`;
+  if(tmpl.includes('%s')) return tmpl.replace(/%s/g, encoded);
+  if(tmpl.includes('{q}')) return tmpl.replace(/\{q\}/g, encoded);
+  try{
+    const u = new URL(tmpl);
+    if(u.search) {
+      // append q param preserving existing params
+      const sep = u.search.endsWith('&') ? '' : '&';
+      return tmpl + sep + 'q=' + encoded;
+    } else {
+      u.search = '?q=' + encoded;
+      return u.toString();
+    }
+  }catch(e){
+    return tmpl + (tmpl.includes('?') ? '&' : '?') + 'q=' + encoded;
+  }
+}
