@@ -1,8 +1,9 @@
 # Пошукач — Нова вкладка / Search — New Tab
 
-# завантаження
 
 # Українська
+ -завантаження
+ 
 1. Скачайте або скопіюйте папку `newtab`.
 2. Відкрийте браузер (Chrome / Edge) → `chrome://extensions` або `edge://extensions`.
 3. Увімкніть "Режим розробника" (Developer mode).
@@ -15,9 +16,9 @@
    - `//save` — примусово зберегти налаштування.
    - `//clear` — очистити фон і іконки.
 
-# download
 
 # English
+ -download
 1. Download or copy the `newtab` folder.
 2. Open Chrome/Edge → `chrome://extensions` or `edge://extensions`.
 3. Enable "Developer mode".
