@@ -75,7 +75,8 @@ const state = {
   inputColorMode: 'dark',
   customInputColor: null,
   searchEngineName: 'google',
-  searchEngineTemplate: 'https://www.google.com/search?q=%s'
+  searchEngineTemplate: 'https://www.google.com/search?q=%s',
+  currentInlineSuggestion: null // Зберігаємо поточну авто-підстановку
 };
 
 const bgImg = document.getElementById('bgImg');
@@ -83,6 +84,7 @@ const bgVideo = document.getElementById('bgVideo');
 const board = document.getElementById('board');
 const fileInput = document.getElementById('fileInput');
 const query = document.getElementById('query');
+const queryGhost = document.getElementById('query-ghost'); // Нове поле
 const cmdList = document.getElementById('cmdList');
 const cmdModal = document.getElementById('cmdModal');
 const modalTitle = document.getElementById('modalTitle');
@@ -159,53 +161,51 @@ query.addEventListener('keydown', e => {
   const currentSuggestions = state.currentDisplayedSuggestions || [];
   const max = currentSuggestions.length;
 
+  // Пріоритет для авто-підстановки
+  if (state.currentInlineSuggestion) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runCmd(state.currentInlineSuggestion);
+      return;
+    }
+    if (e.key === 'Tab' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      query.value = state.currentInlineSuggestion;
+      state.currentInlineSuggestion = null;
+      queryGhost.value = '';
+      return;
+    }
+    if (e.key === 'Backspace') {
+      state.currentInlineSuggestion = null;
+      queryGhost.value = '';
+      // Далі код продовжить виконання і видалить символ
+    }
+  }
+
   if (!(cmdList.style.display !== 'none' && max > 0)) return;
 
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
-
-    if (state.selectedCmdIndex === -1 || state.selectedCmdIndex === undefined)
-      state.selectedCmdIndex = 0;
-    else if (e.key === 'ArrowDown')
-      state.selectedCmdIndex = (state.selectedCmdIndex + 1) % max;
-    else if (e.key === 'ArrowUp')
-      state.selectedCmdIndex = (state.selectedCmdIndex - 1 + max) % max;
-
+    if (state.selectedCmdIndex === -1) state.selectedCmdIndex = 0;
+    else if (e.key === 'ArrowDown') state.selectedCmdIndex = (state.selectedCmdIndex + 1) % max;
+    else if (e.key === 'ArrowUp') state.selectedCmdIndex = (state.selectedCmdIndex - 1 + max) % max;
     updateCmdSelection();
-  }
-
-  // TAB — тільки підставляє текст, не виконує
-  else if (e.key === 'Tab') {
+  } else if (e.key === 'Tab') {
     if (state.selectedCmdIndex >= 0 && currentSuggestions[state.selectedCmdIndex]) {
       e.preventDefault();
-      const selectedSuggestion = currentSuggestions[state.selectedCmdIndex];
-      if (selectedSuggestion.type === 'command' && selectedSuggestion.rawCommand) {
-        query.value = selectedSuggestion.rawCommand.key + ' ';
-      } else {
-        query.value = selectedSuggestion.text;
-      }
+      const suggestion = currentSuggestions[state.selectedCmdIndex];
+      query.value = suggestion.type === 'command' ? suggestion.rawCommand.key + ' ' : suggestion.text;
       cmdList.style.display = 'none';
       query.focus();
     }
-  }
-
-  // ENTER — виконує дію
-  else if (e.key === 'Enter') {
-    e.preventDefault();
+  } else if (e.key === 'Enter') {
     if (state.selectedCmdIndex >= 0 && currentSuggestions[state.selectedCmdIndex]) {
-      const selectedSuggestion = currentSuggestions[state.selectedCmdIndex];
+      e.preventDefault();
+      const suggestion = currentSuggestions[state.selectedCmdIndex];
       cmdList.style.display = 'none';
-      if (selectedSuggestion.type === 'command' && selectedSuggestion.rawCommand) {
-        runCmd(selectedSuggestion.rawCommand.key);
-      } else {
-        runCmd(selectedSuggestion.text);
-      }
-    } else {
-      document.getElementById('run').click();
+      runCmd(suggestion.type === 'command' ? suggestion.rawCommand.key : suggestion.text);
     }
-  }
-
-  else if (e.key === 'Escape') {
+  } else if (e.key === 'Escape') {
     cmdList.style.display = 'none';
     state.selectedCmdIndex = -1;
   }
@@ -244,13 +244,31 @@ query.addEventListener('input', () => {
     return;
   }
 
-  if(!raw){ cmdList.style.display='none'; return; }
+  if(!raw){
+    cmdList.style.display='none';
+    state.currentInlineSuggestion = null; 
+    queryGhost.value = '';              
+    return;
+  }
 
   clearTimeout(suggestTimer);
   suggestTimer=setTimeout(async()=>{
     const hints = await fetchGoogleSuggestions(raw);
     const unique = [...new Set(hints)];
+
+    // Очищуємо стару підказку
+    state.currentInlineSuggestion = null;
+    queryGhost.value = '';
+
     if(!unique.length){ cmdList.style.display='none'; return; }
+
+    // Логіка для авто-підстановки
+    const topSuggestion = unique[0];
+    if (topSuggestion && topSuggestion.toLowerCase().startsWith(raw) && topSuggestion.length > raw.length) {
+      state.currentInlineSuggestion = topSuggestion;
+      queryGhost.value = topSuggestion;
+    }
+
     cmdList.innerHTML = unique.map((h,i)=>`<div class="cmd-item" data-index="${i}">🔍 ${h}</div>`).join('');
     state.currentDisplayedSuggestions = unique.map(h=>({type:'hint',text:h}));
     state.selectedCmdIndex=-1;
@@ -451,3 +469,22 @@ if (closeUpdatePopup) {
     }
   });
 }
+
+/* --- ОНОВЛЕНИЙ БЛОК --- */
+
+// Функція для оновлення позиції списку підказок
+function repositionCmdList() {
+    if (cmdList.style.display !== 'none') {
+        const queryRect = query.getBoundingClientRect();
+        cmdList.style.left = `${queryRect.left}px`;
+        cmdList.style.top = `${queryRect.bottom + 4}px`;
+        cmdList.style.width = `${queryRect.width}px`;
+    }
+}
+
+// Відстежуємо зміну розміру поля вводу (ефективно)
+const resizeObserver = new ResizeObserver(repositionCmdList);
+resizeObserver.observe(query);
+
+// Додаємо слухача на зміну розміру вікна (надійно)
+window.addEventListener('resize', repositionCmdList);
