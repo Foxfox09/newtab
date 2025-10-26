@@ -48,6 +48,12 @@
     justify-content:center;
     padding:6px;
   }
+  .input-container {
+    position: relative;
+    flex: 1;
+    display: flex;
+    border-radius: 12px; /* Рамка тепер на контейнері */
+  }
   .search{
     flex:1;
     height:56px;
@@ -59,6 +65,19 @@
     outline: none;
     box-sizing: border-box;
     text-shadow: var(--input-text-shadow);
+    background-color: transparent; /* Основне поле прозоре */
+  }
+  #query {
+    position: relative; /* Щоб було поверх ghost */
+    z-index: 2;
+  }
+  #query-ghost {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    color: var(--input-placeholder); /* Колір підказки */
+    pointer-events: none; /* Не реагує на кліки */
   }
   .search::placeholder { color: var(--input-placeholder); opacity:1; }
   .search.glass{ padding-left:18px; }
@@ -258,7 +277,10 @@
   <div id="overlay"></div>
 
   <div class="search-wrap">
-    <input id="query" class="search glass" placeholder="Введіть запит або команду //" autocomplete="off" />
+    <div class="input-container glass">
+      <input id="query-ghost" class="search" readonly tabindex="-1" />
+      <input id="query" class="search" placeholder="Введіть запит або команду //" autocomplete="off" />
+    </div>
     <button id="run" class="btn glass">Виконати</button>
     <input id="fileInput" type="file" accept="image/*,video/mp4" />
   </div>
