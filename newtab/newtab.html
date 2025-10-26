@@ -268,9 +268,48 @@
     opacity: 0.7;
     padding: 0 0 0 5px;
   }
+
+  /* --- ОНОВЛЕНО: Стиль 2 --- */
+  .style-2 .input-container,
+  .style-2 .btn,
+  .style-2 .icon-wrapper,
+  .style-2 .update-popup,
+  .style-2 #cmdList {
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    backdrop-filter: url(#distorsion);
+    -webkit-backdrop-filter: url(#distorsion);
+    transition: all 0.6s ease;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    background: transparent; /* Перевизначаємо стандартний .glass */
+  }
+
+  .style-2 .input-container,
+  .style-2 .btn {
+    border-radius: 50px;
+  }
+  .style-2 .search {
+    font-size: 20px;
+    height: 64px;
+  }
+  .style-2 .btn {
+    height: 64px;
+  }
+  .style-2 .icon-wrapper,
+  .style-2 #cmdList,
+  .style-2 .update-popup {
+    border-radius: 28px;
+  }
 </style>
 </head>
 <body>
+<!-- ДОДАНО: SVG-фільтр для стилю 2 -->
+<svg width="0" height="0" style="position:absolute">
+  <filter id="distorsion">
+    <feTurbulence type="fractalNoise" baseFrequency="0.01 0.1" numOctaves="5" seed="2" stitchTiles="stitch" result="noise"/>
+    <feDisplacementMap in="SourceGraphic" in2="noise" scale="8" xChannelSelector="R" yChannelSelector="B" result="distorted"/>
+  </filter>
+</svg>
+
 <div id="app">
   <img id="bgImg" alt="" style="display:none">
   <video id="bgVideo" autoplay muted loop playsinline style="display:none"></video>
