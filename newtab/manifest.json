@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "пошукач — Нова вкладка",
-  "version": "1.1",
+  "version": "1.1.2",
   "description": "Персоналізована нова вкладка.",
   "chrome_url_overrides": {
     "newtab": "newtab.html"
@@ -17,7 +17,8 @@
     "https://suggestqueries.google.com/"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "https://suggestqueries.google.com/*",
+    "https://raw.githubusercontent.com/*"
   ],
   "content_security_policy": {
     "extension_pages": "default-src 'self' https://*; script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google.com/s2/favicons/ https://*; connect-src 'self' https://*;"
@@ -32,4 +33,3 @@
     }
   ]
 }
-

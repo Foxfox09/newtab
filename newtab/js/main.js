@@ -88,6 +88,8 @@ const cmdModal = document.getElementById('cmdModal');
 const modalTitle = document.getElementById('modalTitle');
 const modalDesc = document.getElementById('modalDesc');
 const closeModal = document.getElementById('closeModal');
+const updateNotification = document.getElementById('update-notification');
+const closeUpdatePopup = document.getElementById('close-update-popup');
 
 /* збереження/загрузка */
 async function loadState(){
@@ -373,7 +375,11 @@ function recordSite(url) {
 }
 
 /* Ініціалізація */
-initDB().then(()=>{ loadState(); setTimeout(initSortable,80); });
+initDB().then(()=>{ 
+  loadState(); 
+  setTimeout(initSortable,80); 
+  checkForUpdates(); 
+});
 
 function buildSearchUrl(q){
   const tmpl=(state.searchEngineTemplate||'').trim();
@@ -381,4 +387,65 @@ function buildSearchUrl(q){
   if(!tmpl) return `https://www.google.com/search?q=${encoded}`;
   if(tmpl.includes('%s')) return tmpl.replace(/%s/g,encoded);
   return tmpl + (tmpl.includes('?')?'&':'?')+'q='+encoded;
+}
+
+/* Update Checker */
+function isNewerVersion(remote, local) {
+  const remoteParts = remote.split('.').map(Number);
+  const localParts = local.split('.').map(Number);
+  for (let i = 0; i < Math.max(remoteParts.length, localParts.length); i++) {
+    const r = remoteParts[i] || 0;
+    const l = localParts[i] || 0;
+    if (r > l) return true;
+    if (r < l) return false;
+  }
+  return false;
+}
+
+async function checkForUpdates() {
+  console.log("Перевірка оновлень...");
+  try {
+    const repoUrl = 'https://raw.githubusercontent.com/Foxfox09/newtab/main/newtab/manifest.json';
+    const response = await fetch(repoUrl, { cache: 'no-store' });
+    if (!response.ok) {
+      console.error(`Помилка перевірки оновлень: статус ${response.status}`);
+      return;
+    }
+
+    const remoteManifest = await response.json();
+    const remoteVersion = remoteManifest.version;
+    const localVersion = chrome.runtime.getManifest().version;
+
+    console.log(`Локальна версія: ${localVersion}`);
+    console.log(`Віддалена версія: ${remoteVersion}`);
+
+    const needsUpdate = isNewerVersion(remoteVersion, localVersion);
+    console.log(`Потрібне оновлення? ${needsUpdate}`);
+
+    if (needsUpdate) {
+      console.log("Знайдено нову версію! Спроба показати вікно...");
+      if (updateNotification) {
+        // ВИПРАВЛЕНО: Прямо маніпулюємо стилями, щоб гарантувати видимість
+        updateNotification.classList.remove('hidden');
+        updateNotification.style.opacity = '1';
+        updateNotification.style.transform = 'translateY(0)';
+        updateNotification.style.pointerEvents = 'auto'; // Робимо елемент клікабельним
+        console.log('Стилі для вікна оновлення застосовано.');
+      } else {
+        console.error('Елемент #update-notification не знайдено!');
+      }
+    } else {
+      console.log("У вас остання версія.");
+    }
+  } catch (error) {
+    console.warn('Перевірка оновлень не вдалася:', error);
+  }
+}
+
+if (closeUpdatePopup) {
+  closeUpdatePopup.addEventListener('click', () => {
+    if (updateNotification) {
+      updateNotification.classList.add('hidden');
+    }
+  });
 }

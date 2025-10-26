@@ -210,6 +210,45 @@
     font-size:14px;
     opacity:0.8;
   }
+
+  /* Update Notification */
+  .update-popup {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 100;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    transition: opacity .3s, transform .3s;
+    transform: translateY(0);
+    opacity: 1;
+    color: #fff; /* Встановлюємо білий колір тексту */
+  }
+  .update-popup.hidden {
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+  }
+  .update-popup p { margin: 0; }
+  .update-popup a {
+    color: inherit; /* Успадковуємо білий колір */
+    text-decoration: none; /* Прибираємо підкреслення */
+  }
+  .update-popup a:hover {
+    text-decoration: underline; /* Додаємо підкреслення при наведенні */
+  }
+  .update-popup button {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    font-size: 16px;
+    opacity: 0.7;
+    padding: 0 0 0 5px;
+  }
 </style>
 </head>
 <body>
@@ -231,6 +270,13 @@
   <div id="hint">
     Команди
   </div>
+</div>
+
+<div id="update-notification" class="update-popup glass hidden">
+  <a href="https://github.com/Foxfox09/newtab" target="_blank" rel="noopener noreferrer">
+    <p>🎉 Доступне оновлення!</p>
+  </a>
+  <button id="close-update-popup">✕</button>
 </div>
 
 <script src="js/Sortable.min.js"></script>
