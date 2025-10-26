@@ -237,8 +237,6 @@ async function fetchGoogleSuggestions(q){
 }
 
 query.addEventListener('input', () => {
-  // ВИПРАВЛЕНО: Очищуємо попередній таймер на самому початку,
-  // щоб уникнути "гонки" між швидким введенням // та логікою пошуку.
   clearTimeout(suggestTimer);
 
   const rawValue = query.value;
@@ -296,9 +294,12 @@ query.addEventListener('input', () => {
     if(!unique.length){ cmdList.style.display='none'; return; }
 
     const topSuggestion = unique[0];
+    // ВИПРАВЛЕНО: Зберігаємо регістр користувача у фантомному тексті
     if (topSuggestion && topSuggestion.toLowerCase().startsWith(q) && topSuggestion.length > q.length) {
       state.currentInlineSuggestion = topSuggestion;
-      queryGhost.value = topSuggestion;
+      // Створюємо фантомний текст, додаючи лише "хвіст" підказки до оригінального вводу
+      const remainingPart = topSuggestion.slice(q.length);
+      queryGhost.value = rawValue + remainingPart;
     }
 
     cmdList.innerHTML = unique.map((h,i)=>`<div class="cmd-item" data-index="${i}">🔍 ${h}</div>`).join('');
