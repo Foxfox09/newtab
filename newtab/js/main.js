@@ -507,22 +507,32 @@ function isNewerVersion(remote, local) {
 }
 
 async function checkForUpdates() {
+  console.log("Перевірка оновлень...");
   try {
     const repoUrl = 'https://raw.githubusercontent.com/Foxfox09/newtab/main/newtab/manifest.json';
     const response = await fetch(repoUrl, { cache: 'no-store' });
-    if (!response.ok) return;
+    if (!response.ok) {
+      console.error(`Помилка перевірки оновлень: статус ${response.status}`);
+      return;
+    }
 
     const remoteManifest = await response.json();
     const remoteVersion = remoteManifest.version;
     const localVersion = chrome.runtime.getManifest().version;
 
+    console.log(`Локальна версія: ${localVersion}`);
+    console.log(`Віддалена версія: ${remoteVersion}`);
+
     if (isNewerVersion(remoteVersion, localVersion)) {
+      console.log("Знайдено нову версію! Показую вікно.");
       if (updateNotification) {
         updateNotification.classList.remove('hidden');
         updateNotification.style.opacity = '1';
         updateNotification.style.transform = 'translateY(0)';
         updateNotification.style.pointerEvents = 'auto'; 
       }
+    } else {
+      console.log("У вас остання версія.");
     }
   } catch (error) {
     console.warn('Перевірка оновлень не вдалася:', error);
