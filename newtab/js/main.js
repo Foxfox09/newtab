@@ -58,10 +58,11 @@ function dbClear() {
 
 /* команди */
 const COMMANDS = [
-  {key:'//bg', short:'Встановити фон (URL або файл)', desc:'//bg <URL> — встановлює фон з URL (jpg, png, mp4). Якщо URL не вказано, відкриється вибір файлу.'},
+  {key:'//bg', short:'Встановити фон (URL або файл)', desc:'//bg <URL або Enter для файлу> — Вкажіть URL або натисніть Enter для вибору файлу.'},
   {key:'//addicon', short:'Додати іконку сайту', desc:'//addicon <URL_сайту> — додає іконку-посилання на сайт (напр., //addicon google.com).'},
   {key:'//save', short:'Примусово зберегти', desc:'//save — примусово зберігає поточні налаштування.'},
   {key:'//clear', short:'Очистити', desc:'//clear — очищує фон і елементи.'},
+  {key:'//style', short:'Змінити стиль', desc:'//style <1|2> — змінює візуальний стиль сторінки.'},
   {key:'//textcolor', short:'Встановити кольір тексту', desc:'//textcolor <hex або назва> — напр., //textcolor #000000 або //textcolor red'},
   {key:'//setsearch', short:'Встановити пошук за замовчуванням', desc:'//setsearch <keyword|url_template> — приклад: //setsearch google або //setsearch https://duckduckgo.com/?q=%s'}
 ];
@@ -70,13 +71,14 @@ const state = {
   bgType: null,
   bgData: null,
   items: [],
+  style: '1',
   selectedCmdIndex: -1,
   currentDisplayedSuggestions: [],
   inputColorMode: 'dark',
   customInputColor: null,
   searchEngineName: 'google',
   searchEngineTemplate: 'https://www.google.com/search?q=%s',
-  currentInlineSuggestion: null // Зберігаємо поточну авто-підстановку
+  currentInlineSuggestion: null
 };
 
 const bgImg = document.getElementById('bgImg');
@@ -84,7 +86,7 @@ const bgVideo = document.getElementById('bgVideo');
 const board = document.getElementById('board');
 const fileInput = document.getElementById('fileInput');
 const query = document.getElementById('query');
-const queryGhost = document.getElementById('query-ghost'); // Нове поле
+const queryGhost = document.getElementById('query-ghost');
 const cmdList = document.getElementById('cmdList');
 const cmdModal = document.getElementById('cmdModal');
 const modalTitle = document.getElementById('modalTitle');
@@ -101,6 +103,7 @@ async function loadState(){
     Object.assign(state, savedState);
     applyBackground();
     renderBoard();
+    applyStyle();
   }catch(e){console.warn('Не вдалося завантажити стан з DB', e)}
 }
 
@@ -119,6 +122,14 @@ function setInputColor(isDarkBg){
   }
 }
 
+function applyStyle() {
+  if (state.style === '2') {
+    document.body.classList.add('style-2');
+  } else {
+    document.body.classList.remove('style-2');
+  }
+}
+
 function applyBackground(){
   let src = state.bgData;
   if (state.bgData instanceof File) src = URL.createObjectURL(state.bgData);
@@ -134,7 +145,6 @@ function applyBackground(){
   }
 }
 
-/* Відображення списку команд */
 function updateCmdSelection(){
   const nodes = Array.from(cmdList.children);
   nodes.forEach(n=> n.classList.remove('selected'));
@@ -144,7 +154,6 @@ function updateCmdSelection(){
   }
 }
 
-/* Команди */
 function parseCommand(raw){
   if(!raw) return null;
   const trimmed = raw.trim();
@@ -160,7 +169,7 @@ query.addEventListener('keydown', e => {
   const currentSuggestions = state.currentDisplayedSuggestions || [];
   const max = currentSuggestions.length;
 
-  // Пріоритет для авто-підстановки
+  // === Обробка inline-підказки (Google) ===
   if (state.currentInlineSuggestion) {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -172,46 +181,43 @@ query.addEventListener('keydown', e => {
       query.value = state.currentInlineSuggestion;
       state.currentInlineSuggestion = null;
       queryGhost.value = '';
+      hideSuggestions();
       return;
     }
-    if (e.key === 'Backspace') {
+    if (e.key === 'Escape') {
       state.currentInlineSuggestion = null;
       queryGhost.value = '';
+      return;
     }
   }
 
-  if (!(cmdList.style.display !== 'none' && max > 0)) return;
+  // === Якщо список команд відкритий ===
+  if (cmdList.style.display !== 'none' && max > 0) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (state.selectedCmdIndex === -1) state.selectedCmdIndex = 0;
+      else if (e.key === 'ArrowDown') state.selectedCmdIndex = (state.selectedCmdIndex + 1) % max;
+      else if (e.key === 'ArrowUp') state.selectedCmdIndex = (state.selectedCmdIndex - 1 + max) % max;
+      updateCmdSelection();
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      selectCurrentSuggestion();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      selectCurrentSuggestion();
+    } else if (e.key === 'Escape') {
+      hideSuggestions();
+    }
+    return;
+  }
 
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+  // === Enter для звичайного пошуку або команди ===
+  if (e.key === 'Enter') {
     e.preventDefault();
-    if (state.selectedCmdIndex === -1) state.selectedCmdIndex = 0;
-    else if (e.key === 'ArrowDown') state.selectedCmdIndex = (state.selectedCmdIndex + 1) % max;
-    else if (e.key === 'ArrowUp') state.selectedCmdIndex = (state.selectedCmdIndex - 1 + max) % max;
-    updateCmdSelection();
-  } else if (e.key === 'Tab') {
-    if (state.selectedCmdIndex >= 0 && currentSuggestions[state.selectedCmdIndex]) {
-      e.preventDefault();
-      const suggestion = currentSuggestions[state.selectedCmdIndex];
-      if (suggestion.type === 'command') {
-        query.value = suggestion.rawCommand.key + ' ';
-      } else {
-        query.value = suggestion.text;
-      }
-      cmdList.style.display = 'none';
-      query.focus();
-      // ВИПРАВЛЕНО: Примусово викликаємо подію input, щоб оновити фантомну підказку
-      query.dispatchEvent(new Event('input', { bubbles: true }));
+    const raw = query.value.trim();
+    if (raw) {
+      runCmd(raw);
     }
-  } else if (e.key === 'Enter') {
-    if (state.selectedCmdIndex >= 0 && currentSuggestions[state.selectedCmdIndex]) {
-      e.preventDefault();
-      const suggestion = currentSuggestions[state.selectedCmdIndex];
-      cmdList.style.display = 'none';
-      runCmd(suggestion.type === 'command' ? suggestion.rawCommand.key : suggestion.text);
-    }
-  } else if (e.key === 'Escape') {
-    cmdList.style.display = 'none';
-    state.selectedCmdIndex = -1;
   }
 });
 
@@ -231,22 +237,24 @@ async function fetchGoogleSuggestions(q){
 }
 
 query.addEventListener('input', () => {
+  // ВИПРАВЛЕНО: Очищуємо попередній таймер на самому початку,
+  // щоб уникнути "гонки" між швидким введенням // та логікою пошуку.
+  clearTimeout(suggestTimer);
+
   const rawValue = query.value;
   const q = rawValue.trim().toLowerCase();
 
-  // Очищуємо фантомний текст, якщо це не команда
   if (!q.startsWith('//')) {
     queryGhost.value = '';
   }
 
   if (q.startsWith('//')) {
-    state.currentInlineSuggestion = null; // Видаляємо пошукову підказку
+    state.currentInlineSuggestion = null;
 
     const parts = rawValue.trim().split(/\s+/);
     const commandKey = parts[0].toLowerCase();
     const potentialCommand = COMMANDS.find(c => c.key === commandKey);
 
-    // Якщо введено повну команду і пробіл, показуємо підказку для аргументу
     if (potentialCommand && rawValue.endsWith(' ')) {
       cmdList.style.display = 'none';
       const match = potentialCommand.desc.match(/<([^>]+)>/);
@@ -254,7 +262,7 @@ query.addEventListener('input', () => {
       queryGhost.value = rawValue + placeholder;
       return;
     } else {
-      queryGhost.value = ''; // В іншому випадку очищуємо фантом команди
+      queryGhost.value = '';
     }
 
     const filter = q.substring(2);
@@ -278,7 +286,6 @@ query.addEventListener('input', () => {
     return;
   }
 
-  clearTimeout(suggestTimer);
   suggestTimer=setTimeout(async()=>{
     const hints = await fetchGoogleSuggestions(q);
     const unique = [...new Set(hints)];
@@ -302,65 +309,106 @@ query.addEventListener('input', () => {
   },200);
 });
 
-/* Вибір підказки */
 cmdList.addEventListener('click', e=>{
   const itemEl = e.target.closest('.cmd-item');
   if(!itemEl) return;
-  const index=parseInt(itemEl.dataset.index);
-  const suggestion=state.currentDisplayedSuggestions[index];
-  cmdList.style.display='none';
-  if(suggestion.type==='command' && suggestion.rawCommand){
-    runCmd(suggestion.rawCommand.key);
-  } else {
-    runCmd(suggestion.text);
-  }
+  state.selectedCmdIndex=parseInt(itemEl.dataset.index);
+  selectCurrentSuggestion();
 });
 
-// ДОДАНО: Закриваємо список підказок при кліку поза його межами
 document.addEventListener('click', (e) => {
   const isClickInsideSearch = e.target.closest('.search-wrap');
   const isClickInsideSuggestions = e.target.closest('#cmdList');
 
   if (!isClickInsideSearch && !isClickInsideSuggestions) {
-    cmdList.style.display = 'none';
-    state.selectedCmdIndex = -1;
+    hideSuggestions();
   }
 });
 
-/* Виконання команди або пошуку */
-function runCmd(raw){
-  const parsed=parseCommand(raw);
-  if(!parsed){
-    if(raw.trim()){
+function hideSuggestions() {
+  cmdList.style.display = 'none';
+  state.selectedCmdIndex = -1;
+  state.currentDisplayedSuggestions = [];
+}
+
+function selectCurrentSuggestion() {
+  if (state.selectedCmdIndex < 0 || state.selectedCmdIndex >= state.currentDisplayedSuggestions.length) return;
+
+  const suggestion = state.currentDisplayedSuggestions[state.selectedCmdIndex];
+  hideSuggestions();
+
+  if (suggestion.type === 'command') {
+    const command = suggestion.rawCommand;
+    if (command.desc.includes('<')) {
+      query.value = command.key + ' ';
+      query.focus();
+      query.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      runCmd(command.key);
+    }
+  } else {
+    runCmd(suggestion.text);
+  }
+}
+
+function runCmd(raw) {
+  const parsed = parseCommand(raw);
+  hideSuggestions();
+  state.currentInlineSuggestion = null;
+  queryGhost.value = '';
+
+  if (!parsed) {
+    if (raw.trim()) {
       saveSearch(raw.trim());
       window.open(buildSearchUrl(raw.trim()), '_self');
     }
+    query.value = '';
     return;
   }
-  const parts=parsed.parts;
-  const cmd=parsed.cmd;
 
-  if(cmd==='//bg'){
-    const url=parts[1];
-    if(!url){ fileInput.click(); }
-    else{
-      state.bgType = url.toLowerCase().endsWith('.mp4')?'video':'image';
-      state.bgData=url; applyBackground(); saveState();
+  const parts = parsed.parts;
+  const cmd = parsed.cmd;
+  let executed = true;
+
+  if (cmd === '//bg') {
+    const url = parts[1];
+    if (!url) { fileInput.click(); }
+    else {
+      state.bgType = url.toLowerCase().endsWith('.mp4') ? 'video' : 'image';
+      state.bgData = url; applyBackground(); saveState();
     }
-  } else if(cmd==='//addicon'){
-    let domain=parts[1];
-    if(!domain){ alert('Вкажіть URL сайту після //addicon'); return; }
-    const linkUrl = domain.startsWith('http')?domain:'https://'+domain;
-    const cleanDomain = new URL(linkUrl).hostname;
-    const iconUrl=`https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=128`;
-    const it={type:'icon',linkUrl,iconUrl,id:Date.now()};
-    state.items.push(it); renderBoard(); saveState();
-  } else if(cmd==='//save'){ saveState(); alert('Збережено!'); }
-  else if(cmd==='//clear'){
-    state.bgType=null; state.bgData=null; applyBackground(); state.items=[]; renderBoard(); dbClear();
-  } else { alert('Невідома команда'); }
+  } else if (cmd === '//addicon') {
+    let domain = parts[1];
+    if (!domain) { alert('Вкажіть URL сайту після //addicon'); executed = false; }
+    else {
+      const linkUrl = domain.startsWith('http') ? domain : 'https://' + domain;
+      const cleanDomain = new URL(linkUrl).hostname;
+      const iconUrl = `https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=128`;
+      const it = { type: 'icon', linkUrl, iconUrl, id: Date.now() };
+      state.items.push(it); renderBoard(); saveState();
+    }
+  } else if (cmd === '//save') { saveState(); alert('Збережено!'); }
+  else if (cmd === '//clear') {
+    state.bgType = null; state.bgData = null; applyBackground(); state.items = []; renderBoard(); dbClear();
+  } else if (cmd === '//style') {
+    const styleNum = parts[1];
+    if (styleNum === '1' || styleNum === '2') {
+      state.style = styleNum;
+      applyStyle();
+      saveState();
+      alert(`Стиль змінено на: ${styleNum}`);
+    } else {
+      alert('Використання: //style 1 або //style 2');
+      executed = false;
+    }
+  } else {
+    alert('Невідома команда');
+    executed = false;
+  }
 
-  query.value='';
+  if (executed) {
+    query.value = '';
+  }
 }
 
 /* Іконки */
@@ -390,7 +438,7 @@ board.addEventListener('click', e=>{
   if(!wrapper||isDragging) return;
   if(wrapper.dataset.link){
     recordSite(wrapper.dataset.link);
-    window.open(wrapper.dataset.link,'_self'); // відкриває в тій самій вкладці
+    window.open(wrapper.dataset.link,'_self');
   }
 });
 
@@ -459,39 +507,22 @@ function isNewerVersion(remote, local) {
 }
 
 async function checkForUpdates() {
-  console.log("Перевірка оновлень...");
   try {
     const repoUrl = 'https://raw.githubusercontent.com/Foxfox09/newtab/main/newtab/manifest.json';
     const response = await fetch(repoUrl, { cache: 'no-store' });
-    if (!response.ok) {
-      console.error(`Помилка перевірки оновлень: статус ${response.status}`);
-      return;
-    }
+    if (!response.ok) return;
 
     const remoteManifest = await response.json();
     const remoteVersion = remoteManifest.version;
     const localVersion = chrome.runtime.getManifest().version;
 
-    console.log(`Локальна версія: ${localVersion}`);
-    console.log(`Віддалена версія: ${remoteVersion}`);
-
-    const needsUpdate = isNewerVersion(remoteVersion, localVersion);
-    console.log(`Потрібне оновлення? ${needsUpdate}`);
-
-    if (needsUpdate) {
-      console.log("Знайдено нову версію! Спроба показати вікно...");
+    if (isNewerVersion(remoteVersion, localVersion)) {
       if (updateNotification) {
-        
         updateNotification.classList.remove('hidden');
         updateNotification.style.opacity = '1';
         updateNotification.style.transform = 'translateY(0)';
         updateNotification.style.pointerEvents = 'auto'; 
-        console.log('Стилі для вікна оновлення застосовано.');
-      } else {
-        console.error('Елемент #update-notification не знайдено!');
       }
-    } else {
-      console.log("У вас остання версія.");
     }
   } catch (error) {
     console.warn('Перевірка оновлень не вдалася:', error);
@@ -506,9 +537,6 @@ if (closeUpdatePopup) {
   });
 }
 
-/* --- ОНОВЛЕНИЙ БЛОК --- */
-
-// Функція для оновлення позиції списку підказок
 function repositionCmdList() {
     if (cmdList.style.display !== 'none') {
         const queryRect = query.getBoundingClientRect();
@@ -518,9 +546,15 @@ function repositionCmdList() {
     }
 }
 
-// Відстежуємо зміну розміру поля вводу (ефективно)
 const resizeObserver = new ResizeObserver(repositionCmdList);
 resizeObserver.observe(query);
 
-// Додаємо слухача на зміну розміру вікна (надійно)
 window.addEventListener('resize', repositionCmdList);
+
+query.addEventListener('blur', () => {
+  setTimeout(() => {
+    if (!query.contains(document.activeElement) && !cmdList.contains(document.activeElement)) {
+      hideSuggestions();
+    }
+  }, 150);
+});
