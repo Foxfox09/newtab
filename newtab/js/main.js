@@ -391,9 +391,11 @@ function buildSearchUrl(q){
 
 /* Update Checker */
 function isNewerVersion(remote, local) {
-  const remoteParts = remote.split('.').map(Number);
-  const localParts = local.split('.').map(Number);
-  for (let i = 0; i < Math.max(remoteParts.length, localParts.length); i++) {
+  const remoteParts = String(remote || '0').split('.').map(v => parseInt(v, 10) || 0);
+  const localParts = String(local || '0').split('.').map(v => parseInt(v, 10) || 0);
+  const len = Math.max(remoteParts.length, localParts.length);
+
+  for (let i = 0; i < len; i++) {
     const r = remoteParts[i] || 0;
     const l = localParts[i] || 0;
     if (r > l) return true;
@@ -425,11 +427,11 @@ async function checkForUpdates() {
     if (needsUpdate) {
       console.log("Знайдено нову версію! Спроба показати вікно...");
       if (updateNotification) {
-        // ВИПРАВЛЕНО: Прямо маніпулюємо стилями, щоб гарантувати видимість
+        
         updateNotification.classList.remove('hidden');
         updateNotification.style.opacity = '1';
         updateNotification.style.transform = 'translateY(0)';
-        updateNotification.style.pointerEvents = 'auto'; // Робимо елемент клікабельним
+        updateNotification.style.pointerEvents = 'auto'; 
         console.log('Стилі для вікна оновлення застосовано.');
       } else {
         console.error('Елемент #update-notification не знайдено!');
