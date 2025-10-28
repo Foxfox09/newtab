@@ -64,7 +64,8 @@ const COMMANDS = [
   {key:'//clear', short:'Очистити', desc:'//clear — очищує фон і елементи.'},
   {key:'//style', short:'Змінити стиль', desc:'//style <1|2> — змінює візуальний стиль сторінки.'},
   {key:'//textcolor', short:'Встановити кольір тексту', desc:'//textcolor <hex або назва> — напр., //textcolor #000000 або //textcolor red'},
-  {key:'//setsearch', short:'Встановити пошук за замовчуванням', desc:'//setsearch <keyword|url_template> — приклад: //setsearch google або //setsearch https://duckduckgo.com/?q=%s'}
+  {key:'//setsearch', short:'Встановити пошук за замовчуванням', desc:'//setsearch <keyword|url_template> — приклад: //setsearch google або //setsearch https://duckduckgo.com/?q=%s'},
+  {key:'//togglebutton', short:'Показати/сховати кнопку', desc:'//togglebutton <on|off> — вмикає або вимикає кнопку "Виконати".'}
 ];
 
 const state = {
@@ -78,7 +79,8 @@ const state = {
   customInputColor: null,
   searchEngineName: 'google',
   searchEngineTemplate: 'https://www.google.com/search?q=%s',
-  currentInlineSuggestion: null
+  currentInlineSuggestion: null,
+  isButtonVisible: true
 };
 
 const bgImg = document.getElementById('bgImg');
@@ -104,6 +106,7 @@ async function loadState(){
     applyBackground();
     renderBoard();
     applyStyle();
+    applyButtonVisibility(); // Додано
   }catch(e){console.warn('Не вдалося завантажити стан з DB', e)}
 }
 
@@ -119,6 +122,14 @@ function setInputColor(isDarkBg){
   } else {
     document.documentElement.style.setProperty('--input-color','#111111');
     document.documentElement.style.setProperty('--input-placeholder','rgba(0,0,0,0.55)');
+  }
+}
+
+// Додано: Функція для керування видимістю кнопки
+function applyButtonVisibility() {
+  const runButton = document.getElementById('run');
+  if (runButton) {
+    runButton.style.display = state.isButtonVisible ? 'inline-flex' : 'none';
   }
 }
 
@@ -336,7 +347,7 @@ query.addEventListener('input', () => {
       queryGhost.value = rawValue + remainingPart;
     }
 
-    cmdList.innerHTML = unique.map((h,i)=>`<div class="cmd-item" data-index="${i}">🔍 ${h}</div>`).join('');
+    cmdList.innerHTML = unique.map((h,i)=>`<div class="cmd-item" data-index="${i}"><img src="img/search_icon.png" class="suggestion-icon" alt="">${h}</div>`).join('');
     state.currentDisplayedSuggestions = unique.map(h=>({type:'hint',text:h}));
     state.selectedCmdIndex=-1;
     repositionCmdList();
@@ -437,6 +448,22 @@ function runCmd(raw) {
     } else {
       alert('Використання: //style 1 або //style 2');
       executed = false;
+    }
+  } else if (cmd === '//togglebutton') {
+    const arg = parts[1];
+    if (arg === 'on') {
+        state.isButtonVisible = true;
+        alert('Кнопку "Виконати" увімкнено.');
+    } else if (arg === 'off') {
+        state.isButtonVisible = false;
+        alert('Кнопку "Виконати" вимкнено.');
+    } else {
+        alert('Використання: //togglebutton on або //togglebutton off');
+        executed = false;
+    }
+    if (executed) {
+        applyButtonVisibility();
+        saveState();
     }
   } else {
     alert('Невідома команда');
