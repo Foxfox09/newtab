@@ -165,6 +165,9 @@ function parseCommand(raw){
 
 document.getElementById('run').addEventListener('click', ()=>runCmd(query.value));
 
+/* Флаг, щоб уникнути подвійного виконання Enter */
+let _handlingEnter = false;
+
 query.addEventListener('keydown', e => {
   const currentSuggestions = state.currentDisplayedSuggestions || [];
   const max = currentSuggestions.length;
@@ -172,8 +175,13 @@ query.addEventListener('keydown', e => {
   // === Обробка inline-підказки (Google) ===
   if (state.currentInlineSuggestion) {
     if (e.key === 'Enter') {
+      // Якщо ми вже обробляємо Enter — нічого не робимо повторно
+      if (_handlingEnter) return;
+      _handlingEnter = true;
       e.preventDefault();
+      // Виконуємо запит (inline suggestion)
       runCmd(state.currentInlineSuggestion);
+      setTimeout(() => { _handlingEnter = false; }, 60);
       return;
     }
     if (e.key === 'Tab' || e.key === 'ArrowRight') {
@@ -200,24 +208,51 @@ query.addEventListener('keydown', e => {
       else if (e.key === 'ArrowUp') state.selectedCmdIndex = (state.selectedCmdIndex - 1 + max) % max;
       updateCmdSelection();
     } else if (e.key === 'Tab') {
+      // TAB — підставляє текст, не виконує
       e.preventDefault();
-      selectCurrentSuggestion();
+      if (state.selectedCmdIndex < 0 && currentSuggestions.length > 0) {
+        state.selectedCmdIndex = 0; // якщо нічого не виділено — підставляємо перший
+      }
+      // підставити (але не виконувати)
+      const sug = state.currentDisplayedSuggestions[state.selectedCmdIndex];
+      if (sug) {
+        if (sug.type === 'command' && sug.rawCommand) {
+          query.value = sug.rawCommand.key + ' ';
+        } else {
+          query.value = sug.text;
+        }
+      }
+      hideSuggestions();
+      query.focus();
     } else if (e.key === 'Enter') {
+      // ENTER — виконує дію. Виконуємо завжди над виділеним або першим елементом.
+      // Уникаємо подвійного виконання
+      if (_handlingEnter) return;
+      _handlingEnter = true;
       e.preventDefault();
+
+      if (state.selectedCmdIndex < 0 && currentSuggestions.length > 0) {
+        state.selectedCmdIndex = 0; // якщо нічого не виділено — обираємо перший
+        updateCmdSelection();
+      }
       selectCurrentSuggestion();
+      setTimeout(() => { _handlingEnter = false; }, 60);
     } else if (e.key === 'Escape') {
       hideSuggestions();
     }
     return;
   }
 
-  // === Enter для звичайного пошуку або команди ===
+  // === Enter для звичайного пошуку або команди (коли список не відкритий) ===
   if (e.key === 'Enter') {
+    if (_handlingEnter) return;
+    _handlingEnter = true;
     e.preventDefault();
     const raw = query.value.trim();
     if (raw) {
       runCmd(raw);
     }
+    setTimeout(() => { _handlingEnter = false; }, 60);
   }
 });
 
@@ -294,10 +329,9 @@ query.addEventListener('input', () => {
     if(!unique.length){ cmdList.style.display='none'; return; }
 
     const topSuggestion = unique[0];
-    // ВИПРАВЛЕНО: Зберігаємо регістр користувача у фантомному тексті
+    // Зберігаємо регістр користувача у фантомному тексті
     if (topSuggestion && topSuggestion.toLowerCase().startsWith(q) && topSuggestion.length > q.length) {
       state.currentInlineSuggestion = topSuggestion;
-      // Створюємо фантомний текст, додаючи лише "хвіст" підказки до оригінального вводу
       const remainingPart = topSuggestion.slice(q.length);
       queryGhost.value = rawValue + remainingPart;
     }
@@ -333,7 +367,9 @@ function hideSuggestions() {
 }
 
 function selectCurrentSuggestion() {
-  if (state.selectedCmdIndex < 0 || state.selectedCmdIndex >= state.currentDisplayedSuggestions.length) return;
+  if (state.selectedCmdIndex < 0 || state.selectedCmdIndex >= state.currentDisplayedSuggestions.length) {
+    return;
+  }
 
   const suggestion = state.currentDisplayedSuggestions[state.selectedCmdIndex];
   hideSuggestions();
@@ -569,3 +605,4 @@ query.addEventListener('blur', () => {
     }
   }, 150);
 });
+
