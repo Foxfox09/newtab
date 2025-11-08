@@ -38,7 +38,7 @@
 ### 🎵 Музичний плеєр
 - Інтеграція з YouTube Music.
 - Керуйте відтворенням, не покидаючи вкладку.
-- Детальніше див. у [player](https://github.com/Foxfox09/newtab/releases/tag/1.2.022beta)).
+- Детальніше див. у [player](https://github.com/Foxfox09/newtab/releases/tag/1.2.022beta).
 
 # 🇬🇧 English
 
@@ -79,4 +79,4 @@ You can also insert your own custom URL pattern using `%s`:
 ### 🎵 Music Player
 - Integration with YouTube Music.
 - Control your music without leaving the new tab.
-- See [player](https://github.com/Foxfox09/newtab/releases/tag/1.2.022beta)) for more details.
+- See [player](https://github.com/Foxfox09/newtab/releases/tag/1.2.022beta) for more details.
