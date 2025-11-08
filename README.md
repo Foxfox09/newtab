@@ -17,6 +17,7 @@
 - `//save` — примусово зберегти налаштування.
 - `//clear` — очистити фон і іконки.
 - `//setsearch [сервіс або URL]` — змінити пошукову систему.
+- `//player <on|off>` — показати/сховати музичний плеєр.
 
 ### 🔍 Зміна пошукової системи
 
@@ -33,6 +34,11 @@
 
 Також можна використати власний URL із підстановкою `%s`:
 `//setsearch https://duckduckgo.com/?q=%s`
+
+### 🎵 Музичний плеєр
+- Інтеграція з YouTube Music.
+- Керуйте відтворенням, не покидаючи вкладку.
+- Детальніше див. у [player.md](player.md).
 
 # 🇬🇧 English
 
@@ -52,6 +58,7 @@
 - `//save` — force save settings.
 - `//clear` — clear background and icons.
 - `//setsearch [service or URL]` — change search engine.
+- `//player <on|off>` — show/hide the music player.
 
 ### 🔍 Change Search Engine
 
@@ -68,3 +75,8 @@ Supported shortcuts:
 
 You can also insert your own custom URL pattern using `%s`:
 `//setsearch https://duckduckgo.com/?q=%s`
+
+### 🎵 Music Player
+- Integration with YouTube Music.
+- Control your music without leaving the new tab.
+- See [player.md](player.md) for more details.
