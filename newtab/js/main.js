@@ -63,9 +63,11 @@ const COMMANDS = [
   {key:'//save', short:'Примусово зберегти', desc:'//save — примусово зберігає поточні налаштування.'},
   {key:'//clear', short:'Очистити', desc:'//clear — очищує фон і елементи.'},
   {key:'//style', short:'Змінити стиль', desc:'//style <1|2> — змінює візуальний стиль сторінки.'},
-  {key:'//textcolor', short:'Встановити кольір тексту', desc:'//textcolor <hex або назва> — напр., //textcolor #000000 або //textcolor red'},
+  {key:'//textcolor', short:'Встановити кольір тексту', desc:'//textcolor <hex або назва> — напр., //textcolor #000000ff або //textcolor red'},
   {key:'//setsearch', short:'Встановити пошук за замовчуванням', desc:'//setsearch <keyword|url_template> — приклад: //setsearch google або //setsearch https://duckduckgo.com/?q=%s'},
-  {key:'//togglebutton', short:'Показати/сховати кнопку', desc:'//togglebutton <on|off> — вмикає або вимикає кнопку "Виконати".'}
+  {key:'//togglebutton', short:'Показати/сховати кнопку', desc:'//togglebutton <on|off> — вмикає або вимикає кнопку "Виконати".'},
+  // {key:'//play', short:'Знайти музику', desc:'//play <назва пісні> — шукає музику на YouTube Music.'},
+  {key:'//player', short:'Показати/сховати плеєр', desc:'//player <on|off> — вмикає або вимикає музичний плеєр.'}
 ];
 
 const state = {
@@ -80,7 +82,8 @@ const state = {
   searchEngineName: 'google',
   searchEngineTemplate: 'https://www.google.com/search?q=%s',
   currentInlineSuggestion: null,
-  isButtonVisible: true
+  isButtonVisible: true,
+  isPlayerVisible: false
 };
 
 const bgImg = document.getElementById('bgImg');
@@ -96,6 +99,140 @@ const modalDesc = document.getElementById('modalDesc');
 const closeModal = document.getElementById('closeModal');
 const updateNotification = document.getElementById('update-notification');
 const closeUpdatePopup = document.getElementById('close-update-popup');
+const musicPlayer = document.getElementById('music-player');
+
+// --- NEW: player render ---
+const playerRender = {
+  serverTime: 0,        // seconds (from content script)
+  displayedTime: 0,     // seconds (what we render)
+  duration: 0,          // seconds
+  playing: false,
+  title: '',
+  artist: '',
+  cover: '',
+  liked: false,
+  disliked: false,
+  serverTimestamp: Date.now()
+};
+
+// --- NEW: remember last UI to avoid unnecessary re-renders that reset animations/progress ---
+const lastUI = { title: '', artist: '', cover: '' };
+
+const DISCONNECT_THRESHOLD = 3; 
+let disconnectCounter = 0;
+let controlsHideTimer = null;
+
+function formatTimeSeconds(s) {
+  s = Math.max(0, Number(s) || 0);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  return `${m}:${String(sec).padStart(2,'0')}`;
+}
+
+function updatePlayerUIImmediate(data) {
+	const musicTitle = document.getElementById('music-title');
+	const musicArtist = document.getElementById('music-artist');
+	const musicCover = document.getElementById('music-cover');
+
+	if (musicTitle) musicTitle.textContent = data.title || 'Not Playing';
+	if (musicArtist) musicArtist.textContent = data.artist || '';
+
+	// Встановлюємо обкладинку або placeholder
+	if (musicCover) {
+		if (data.cover) {
+			if (musicCover.src !== data.cover) musicCover.src = data.cover;
+		} else {
+			musicCover.src = 'img/search_icon.png';
+		}
+	}
+
+	// Оновлення marquee (якщо є довгий текст)
+	setTimeout(updatePlayerUITextAndMarquee, 60);
+}
+
+
+function ensureMarqueeStyle() {
+    // inject style once
+    if (document.getElementById('marquee-style')) return;
+    const style = document.createElement('style');
+    style.id = 'marquee-style';
+    style.textContent = `
+    .track-info { overflow: hidden; position: relative; }
+    .track-info .marquee { 
+        display: inline-block; 
+        white-space: nowrap; 
+        transform: translateX(0); 
+        will-change: transform; 
+        /* Додаємо transition для плавного повернення */
+        transition: transform 0.4s ease-out;
+    }
+    @keyframes marquee {
+      0% { transform: translateX(0); }
+      50% { transform: translateX(var(--marquee-shift)); }
+      100% { transform: translateX(0); }
+    }
+    `;
+    document.head.appendChild(style);
+}
+
+function applyMarqueeIfNeeded(el) {
+    if (!el) return;
+    ensureMarqueeStyle();
+
+    // ensure there's an inner .marquee span
+    let inner = el.querySelector('.marquee');
+    if (!inner) {
+        inner = document.createElement('span');
+        inner.className = 'marquee';
+        inner.textContent = el.textContent.trim();
+        el.textContent = '';
+        el.appendChild(inner);
+    }
+
+    // Attach listeners only once
+    if (el.dataset.marqueeAttached) return;
+
+    el.addEventListener('mouseenter', () => {
+        const shift = Math.max(0, inner.scrollWidth - el.clientWidth);
+
+        if (shift <= 4) return;
+
+        // Встановлюємо властивості анімації. Вона матиме вищий пріоритет, ніж transition.
+        inner.style.setProperty('--marquee-shift', `-${shift}px`);
+        const duration = Math.max(6, Math.round((shift / 30) * 10) / 10);
+        inner.style.animation = `marquee ${duration}s linear infinite`;
+    });
+
+    el.addEventListener('mouseleave', () => {
+    
+        inner.style.animation = '';
+    });
+
+    el.dataset.marqueeAttached = '1';
+}
+
+// updatePlayerUITextAndMarquee reuses applyMarqueeIfNeeded
+function updatePlayerUITextAndMarquee() {
+	const titleEl = document.getElementById('music-title');
+	const artistEl = document.getElementById('music-artist');
+	if (!titleEl && !artistEl) return;
+
+	[titleEl, artistEl].forEach(el => {
+		if (!el) return;
+		// If updatePlayerUIImmediate changed outer text, sync inner
+		let inner = el.querySelector('.marquee');
+		if (inner) {
+			if (el.textContent.trim() && inner.textContent.trim() !== el.textContent.trim()) {
+				inner.textContent = el.textContent.trim();
+				el.textContent = '';
+				el.appendChild(inner);
+			}
+		}
+		applyMarqueeIfNeeded(el);
+	});
+}
 
 /* збереження/загрузка */
 async function loadState(){
@@ -106,7 +243,8 @@ async function loadState(){
     applyBackground();
     renderBoard();
     applyStyle();
-    applyButtonVisibility(); // Додано
+    applyButtonVisibility(); 
+    applyPlayerVisibility();
   }catch(e){console.warn('Не вдалося завантажити стан з DB', e)}
 }
 
@@ -125,11 +263,21 @@ function setInputColor(isDarkBg){
   }
 }
 
-// Додано: Функція для керування видимістю кнопки
+
 function applyButtonVisibility() {
   const runButton = document.getElementById('run');
   if (runButton) {
     runButton.style.display = state.isButtonVisible ? 'inline-flex' : 'none';
+  }
+}
+
+function applyPlayerVisibility() {
+  if (musicPlayer) {
+    if (state.isPlayerVisible) {
+      musicPlayer.classList.add('visible');
+    } else {
+      musicPlayer.classList.remove('visible');
+    }
   }
 }
 
@@ -176,7 +324,7 @@ function parseCommand(raw){
 
 document.getElementById('run').addEventListener('click', ()=>runCmd(query.value));
 
-/* Флаг, щоб уникнути подвійного виконання Enter */
+
 let _handlingEnter = false;
 
 query.addEventListener('keydown', e => {
@@ -465,6 +613,42 @@ function runCmd(raw) {
         applyButtonVisibility();
         saveState();
     }
+  } else if (cmd === '//play') {
+    const songQuery = parts.slice(1).join(' ');
+    if (!state.isPlayerVisible) {
+      state.isPlayerVisible = true;
+      applyPlayerVisibility();
+    }
+    saveState();
+    
+    const searchUrl = `https://music.youtube.com/search?q=${encodeURIComponent(songQuery)}`;
+    const homeUrl = 'https://music.youtube.com/';
+    const targetUrl = songQuery ? searchUrl : homeUrl;
+
+    // Use chrome.tabs API to find and update or create a YT Music tab
+    chrome.tabs.query({ url: "*://music.youtube.com/*" }, (tabs) => {
+      if (tabs.length > 0) {
+        chrome.tabs.update(tabs[0].id, { url: targetUrl, active: true });
+      } else {
+        chrome.tabs.create({ url: targetUrl });
+      }
+    });
+  } else if (cmd === '//player') {
+    const arg = parts[1];
+    if (arg === 'on') {
+        state.isPlayerVisible = true;
+        alert('Плеєр увімкнено.');
+    } else if (arg === 'off') {
+        state.isPlayerVisible = false;
+        alert('Плеєр вимкнено.');
+    } else {
+        alert('Використання: //player on або //player off');
+        executed = false;
+    }
+    if (executed) {
+        applyPlayerVisibility();
+        saveState();
+    }
   } else {
     alert('Невідома команда');
     executed = false;
@@ -520,6 +704,134 @@ function initSortable(){
   });
 }
 
+function initMusicPlayer() {
+  if (!musicPlayer) return;
+
+  const sendPlayerCmd = (action) => {
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+      chrome.runtime.sendMessage({ action });
+    }
+  };
+
+  document.getElementById('music-play')?.addEventListener('click', () => sendPlayerCmd('playPause'));
+  document.getElementById('music-prev')?.addEventListener('click', () => sendPlayerCmd('prev'));
+  document.getElementById('music-next')?.addEventListener('click', () => sendPlayerCmd('next'));
+  document.getElementById('music-like')?.addEventListener('click', () => sendPlayerCmd('like'));
+  document.getElementById('music-dislike')?.addEventListener('click', () => sendPlayerCmd('dislike'));
+
+  const openYTMusic = () => {
+    if (document.getElementById('music-title').textContent === 'Not Playing') {
+      window.open('https://music.youtube.com', '_blank');
+    }
+  };
+  document.querySelector('.music-cover')?.addEventListener('click', openYTMusic);
+  document.querySelector('.music-details')?.addEventListener('click', openYTMusic);
+
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg.action === "info" && msg.data) {
+        const d = msg.data;
+         
+        // Check for disconnection
+        if (d.title === "Not Playing" && !d.playing && !d.cover) {
+          disconnectCounter++;
+          if (disconnectCounter >= DISCONNECT_THRESHOLD) {
+            musicPlayer.classList.add('disconnected');
+          }
+        } else {
+          disconnectCounter = 0;
+          musicPlayer.classList.remove('disconnected');
+        }
+
+
+        // store server values (always)
+        playerRender.serverTime = Number(d.currentTime || 0);
+        playerRender.duration = Number(d.duration || 0);
+        playerRender.playing = !!d.playing;
+        playerRender.liked = !!d.liked;
+        playerRender.disliked = !!d.disliked;
+        playerRender.serverTimestamp = Date.now();
+
+        // Only update title/artist/cover UI if they've changed — prevents marquee/hover side-effects
+        const titleChanged = (d.title || '') !== lastUI.title;
+        const artistChanged = (d.artist || '') !== lastUI.artist;
+        const coverChanged = (d.cover || '') !== lastUI.cover;
+
+        if (titleChanged || artistChanged || coverChanged) {
+          lastUI.title = d.title || '';
+          lastUI.artist = d.artist || '';
+          lastUI.cover = d.cover || '';
+
+          // update stored values and UI text/cover
+          playerRender.title = lastUI.title;
+          playerRender.artist = lastUI.artist;
+          playerRender.cover = lastUI.cover;
+
+          updatePlayerUIImmediate({ title: playerRender.title, artist: playerRender.artist, cover: playerRender.cover });
+          // marquee recalculation happens inside updatePlayerUIImmediate via updatePlayerUITextAndMarquee
+        } else {
+          // keep titles as-is (no DOM text writes)
+          if (d.title && !playerRender.title) playerRender.title = d.title;
+          if (d.artist && !playerRender.artist) playerRender.artist = d.artist;
+          if (d.cover && !playerRender.cover) playerRender.cover = d.cover;
+        }
+      }
+    });
+
+    // poll every 1s
+    setInterval(() => {
+      if (state.isPlayerVisible) sendPlayerCmd('getInfo');
+    }, 1000);
+
+    // --- start animation loop for smooth progress ---
+    (function tick() {
+      const now = Date.now();
+      const elapsed = (now - (playerRender.serverTimestamp || now)) / 1000;
+      const target = playerRender.serverTime + (playerRender.playing ? elapsed : 0);
+
+      // alpha smoothing: playing -> smoother, paused -> quicker snap
+      const alpha = playerRender.playing ? 0.15 : 0.25;
+      if (typeof playerRender.displayedTime !== 'number') playerRender.displayedTime = playerRender.serverTime;
+      playerRender.displayedTime += (target - playerRender.displayedTime) * alpha;
+
+      // clamp between 0 and duration
+      if (playerRender.displayedTime < 0) playerRender.displayedTime = 0;
+      if (playerRender.duration > 0 && playerRender.displayedTime > playerRender.duration) playerRender.displayedTime = playerRender.duration;
+
+      // update UI
+      const musicProgress = document.getElementById('music-progress');
+      const musicCurrentTime = document.getElementById('music-current-time');
+      const musicTotalTime = document.getElementById('music-total-time');
+      const playIcon = document.querySelector('#music-play .play-icon');
+      const pauseIcon = document.querySelector('#music-play .pause-icon');
+      const likeBtnImg = document.querySelector('#music-like img');
+      const dislikeBtnImg = document.querySelector('#music-dislike img');
+
+      const progPercent = playerRender.duration > 0 ? Math.min(100, (playerRender.displayedTime / playerRender.duration) * 100) : 0;
+      if (musicProgress) musicProgress.style.width = `${progPercent}%`;
+      if (musicCurrentTime) musicCurrentTime.textContent = formatTimeSeconds(playerRender.displayedTime);
+      if (musicTotalTime) musicTotalTime.textContent = formatTimeSeconds(playerRender.duration);
+
+      if (playIcon && pauseIcon) {
+        playIcon.style.display = playerRender.playing ? 'none' : 'block';
+        pauseIcon.style.display = playerRender.playing ? 'block' : 'none';
+      }
+
+      if (likeBtnImg) {
+        likeBtnImg.src = playerRender.liked ? 'img/like1.png' : 'img/like0.png';
+      }
+      if (dislikeBtnImg) {
+        dislikeBtnImg.src = playerRender.disliked ? 'img/dislike1.png' : 'img/dislike0.png';
+      }
+
+      requestAnimationFrame(tick);
+    })();
+
+    // initial poll if visible
+    if (state.isPlayerVisible) sendPlayerCmd('getInfo');
+  }
+}
+
 /* Історія */
 const SEARCH_KEY='search_history';
 function getHistory(){ return JSON.parse(localStorage.getItem(SEARCH_KEY)||'[]'); }
@@ -543,6 +855,7 @@ function recordSite(url) {
 initDB().then(()=>{ 
   loadState(); 
   setTimeout(initSortable,80); 
+  initMusicPlayer();
   checkForUpdates(); 
 });
 
@@ -557,17 +870,79 @@ function buildSearchUrl(q){
 
 /* Update Checker */
 function isNewerVersion(remote, local) {
-  const remoteParts = String(remote || '0').split('.').map(v => parseInt(v, 10) || 0);
-  const localParts = String(local || '0').split('.').map(v => parseInt(v, 10) || 0);
-  const len = Math.max(remoteParts.length, localParts.length);
+  const remoteStr = String(remote || '0');
+  const localStr = String(local || '0');
 
-  for (let i = 0; i < len; i++) {
-    const r = remoteParts[i] || 0;
-    const l = localParts[i] || 0;
-    if (r > l) return true;
+ 
+  const remoteParts = remoteStr.split('-');
+  const localParts = localStr.split('-');
+  
+  const remoteCore = remoteParts[0];
+  const localCore = localParts[0];
+
+  const remotePre = remoteParts.length > 1 ? remoteParts.slice(1).join('-') : null;
+  const localPre = localParts.length > 1 ? localParts.slice(1).join('-') : null;
+
+ 
+  const remoteCoreParts = remoteCore.split('.').map(v => parseInt(v, 10) || 0);
+  const localCoreParts = localCore.split('.').map(v => parseInt(v, 10) || 0);
+  const coreLen = Math.max(remoteCoreParts.length, localCoreParts.length);
+
+  for (let i = 0; i < coreLen; i++) {
+    const r = remoteCoreParts[i] || 0;
+    const l = localCoreParts[i] || 0;
+    if (r > l) return true; 
     if (r < l) return false;
   }
-  return false;
+
+  // Якщо основні версії однакові, порівнюємо пре-релізні теги
+  // Версія без тегу завжди новіша за версію з тегом (1.0.0 > 1.0.0-beta)
+  if (remotePre && !localPre) return false; // Віддалена - пре-реліз, локальна - стабільна
+  if (!remotePre && localPre) return true;  // Локальна - пре-реліз, віддалена - стабільна
+  if (!remotePre && !localPre) return false; // Обидві стабільні та однакові
+
+  // Обидві версії є пре-релізами, порівнюємо їх частини
+  const remotePreParts = remotePre.split('.');
+  const localPreParts = localPre.split('.');
+  const preLen = Math.max(remotePreParts.length, localPreParts.length);
+
+  for (let i = 0; i < preLen; i++) {
+    const rPart = remotePreParts[i];
+    const lPart = localPreParts[i];
+
+    if (rPart === undefined) return false; // Віддалена коротша, отже старіша
+    if (lPart === undefined) return true;  // Віддалена довша, отже новіша
+
+    const rIsNum = /^\d+$/.test(rPart);
+    const lIsNum = /^\d+$/.test(lPart);
+
+    if (rIsNum && lIsNum) {
+      const rNum = parseInt(rPart, 10);
+      const lNum = parseInt(lPart, 10);
+      if (rNum > lNum) return true;
+      if (rNum < lNum) return false;
+    } else {
+      if (rPart > lPart) return true;
+      if (rPart < lPart) return false;
+    }
+  }
+
+  return false; // Версії повністю ідентичні
+}
+
+function formatVersionForDisplay(version) {
+  if (typeof version !== 'string') return version;
+  const parts = version.split('.');
+  if (parts.length === 4) {
+    const lastPart = parts[3];
+    const baseVersion = parts.slice(0, 3).join('.');
+    if (lastPart === '1') {
+      return `${baseVersion}beta`;
+    } else if (lastPart === '0') {
+      return baseVersion;
+    }
+  }
+  return version;
 }
 
 async function checkForUpdates() {
@@ -584,8 +959,8 @@ async function checkForUpdates() {
     const remoteVersion = remoteManifest.version;
     const localVersion = chrome.runtime.getManifest().version;
 
-    console.log(`Локальна версія: ${localVersion}`);
-    console.log(`Віддалена версія: ${remoteVersion}`);
+    console.log(`Локальна версія: ${formatVersionForDisplay(localVersion)}`);
+    console.log(`Віддалена версія: ${formatVersionForDisplay(remoteVersion)}`);
 
     if (isNewerVersion(remoteVersion, localVersion)) {
       console.log("Знайдено нову версію! Показую вікно.");

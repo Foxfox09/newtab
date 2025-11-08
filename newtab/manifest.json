@@ -1,8 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "пошукач — Нова вкладка",
-  "version": "1.1.5",
-  "description": "Персоналізована нова вкладка.",
+  "name": "пошукач",
+  "version": "1.2.022.1",
+  "description": "нова вкладка.",
+  "background": {
+    "service_worker": "background.js"
+  },
   "chrome_url_overrides": {
     "newtab": "newtab.html"
   },
@@ -14,14 +17,27 @@
   "permissions": [
     "storage",
     "unlimitedStorage",
-    "https://suggestqueries.google.com/"
+    "tabs",
+    "scripting"
   ],
   "host_permissions": [
     "https://suggestqueries.google.com/*",
-    "https://raw.githubusercontent.com/*"
+    "https://raw.githubusercontent.com/*",
+    "https://music.youtube.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://music.youtube.com/*"
+      ],
+      "js": [
+        "js/yt-music-controller.js"
+      ],
+      "run_at": "document_idle"
+    }
   ],
   "content_security_policy": {
-    "extension_pages": "default-src 'self' https://*; script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google.com/s2/favicons/ https://*; connect-src 'self' https://*;"
+    "extension_pages": "default-src 'self' https://*; script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.google.com/s2/favicons/ https://lh3.googleusercontent.com https://*; connect-src 'self' https://*;"
   },
   "web_accessible_resources": [
     {

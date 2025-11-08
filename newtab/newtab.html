@@ -52,7 +52,7 @@
     position: relative;
     flex: 1;
     display: flex;
-    border-radius: 12px; /* Рамка тепер на контейнері */
+    border-radius: 12px;
   }
   .search{
     flex:1;
@@ -129,7 +129,6 @@
   }
   .cmd-item:hover{ transform:translateY(-3px); box-shadow:0 8px 20px rgba(0,0,0,0.45) }
   
-  /* ДОДАНО: Стиль для іконки пошуку в підказках */
   .suggestion-icon {
     width: 18px;
     height: 18px;
@@ -166,7 +165,7 @@
     touch-action: manipulation; 
     -webkit-user-select: none;
     user-select: none;
-    position: relative; /* added for delete button */
+    position: relative;
   }
   .icon-wrapper:active { cursor: grabbing; }
   .icon-wrapper:hover { transform: scale(1.1); box-shadow: 0 12px 25px rgba(0,0,0,0.4); }
@@ -260,11 +259,11 @@
   }
   .update-popup p { margin: 0; }
   .update-popup a {
-    color: inherit; /* Успадковуємо білий колір */
-    text-decoration: none; /* Прибираємо підкреслення */
+    color: inherit;
+    text-decoration: none;
   }
   .update-popup a:hover {
-    text-decoration: underline; /* Додаємо підкреслення при наведенні */
+    text-decoration: underline;
   }
   .update-popup button {
     background: none;
@@ -281,7 +280,8 @@
   .style-2 .btn,
   .style-2 .icon-wrapper,
   .style-2 .update-popup,
-  .style-2 #cmdList {
+  .style-2 #cmdList,
+  .style-2 #music-player {
     border: 1px solid rgba(255, 255, 255, 0.4);
     backdrop-filter: url(#distorsion);
     -webkit-backdrop-filter: url(#distorsion);
@@ -303,13 +303,185 @@
   }
   .style-2 .icon-wrapper,
   .style-2 #cmdList,
-  .style-2 .update-popup {
+  .style-2 .update-popup,
+  .style-2 #music-player {
     border-radius: 28px;
+  }
+
+  /* Music Player */
+  #music-player {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: min(480px, calc(100% - 40px));
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    backdrop-filter: blur(10px) saturate(1.05);
+    -webkit-backdrop-filter: blur(10px) saturate(1.05);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(-50%, 20px);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+  }
+  
+  #music-player.visible {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translate(-50%, 0) !important;
+  }
+  #music-player.disconnected {
+    transform: translate(-50%, 100px) !important;
+    opacity: 0 !important;
+    pointer-events: none;
+  }
+  
+  /* Обкладинка */
+  .music-cover {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    object-fit: cover;
+    background-color: rgba(255,255,255,0.1);
+    flex-shrink: 0;
+  }
+  
+  /* Деталі треку */
+  .music-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+    min-width: 0;
+    transition: all 0.4s ease;
+  }
+  
+  .track-info {
+    overflow: hidden;
+  }
+  .marquee {
+    display: inline-block;
+    white-space: nowrap;
+    overflow: visible;
+  }
+  
+  /* Прогрес і таймер */
+  .progress-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    transition: all 0.4s ease;
+  }
+  .progress-bar-wrapper {
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    background: #fff;
+    width: 0%;
+    transition: width 0.25s linear;
+  }
+  .time-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    opacity: 0.85;
+    margin-top: 4px;
+    padding: 0 2px;
+  }
+  
+  /* Кнопки управління */
+  .music-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    opacity: 0;
+    transform: translateX(20px);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+  
+  #music-player:hover .music-controls {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  
+  /* Кнопки */
+  .player-btn {
+    background: transparent;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .2s, transform .15s;
+    flex-shrink: 0;
+  }
+  .player-btn:hover {
+    background: rgba(255,255,255,0.15);
+    transform: scale(1.1);
+  }
+  .player-btn img {
+    width: 24px;
+    height: 24px;
+  }
+  .play-btn img {
+    width: 28px;
+    height: 28px;
+  }
+  .secondary-btn {
+    opacity: 0.7;
+  }
+  .secondary-btn img {
+    width: 20px;
+    height: 20px;
+  }
+  
+  /* Мінімізований режим */
+  #music-player:not(:hover) {
+    width: min(320px, calc(100% - 40px));
+    padding: 8px;
+  }
+  
+  #music-player:not(:hover) .music-controls {
+    max-width: 0;
+    opacity: 0;
+    transform: translateX(20px);
+    overflow: hidden;
+  }
+  #music-player:hover .music-controls {
+    max-width: 200px;
+    opacity: 1;
+    transform: translateX(0);
+  }
+  
+  #music-player:not(:hover) .music-details {
+    flex: 1;
+    width: auto;
   }
 </style>
 </head>
 <body>
-<!-- ДОДАНО: SVG-фільтр для стилю 2 -->
+<!-- SVG-фільтр для стилю 2 -->
 <svg width="0" height="0" style="position:absolute">
   <filter id="distorsion">
     <feTurbulence type="fractalNoise" baseFrequency="0.01 0.1" numOctaves="5" seed="2" stitchTiles="stitch" result="noise"/>
@@ -334,6 +506,44 @@
   <div id="cmdList" class="glass"></div>
   <div id="board"></div>
   <div id="cmdModal"><button class="close" id="closeModal">✕</button><h3 id="modalTitle"></h3><p id="modalDesc"></p></div>
+
+  <!-- Music Player -->
+  <div id="music-player" class="glass disconnected">
+    <img id="music-cover" src="" alt="Album Art" class="music-cover">
+    <div class="music-details">
+      <div class="track-info">
+        <div id="music-title"><span class="marquee">Not Playing</span></div>
+        <div id="music-artist"><span class="marquee">Use • play • command</span></div>
+      </div>
+      <div class="progress-wrapper">
+        <div class="progress-bar-wrapper">
+          <div id="music-progress" class="progress-bar"></div>
+        </div>
+        <div class="time-row">
+          <span id="music-current-time">0:00</span>
+          <span id="music-total-time">0:00</span>
+        </div>
+      </div>
+    </div>
+    <div class="music-controls">
+        <button id="music-dislike" class="player-btn secondary-btn">
+            <img src="img/dislike0.png" alt="Dislike">
+        </button>
+        <button id="music-prev" class="player-btn">
+            <img src="img/back.png" alt="Previous">
+        </button>
+        <button id="music-play" class="player-btn play-btn">
+            <img class="play-icon" src="img/play.png" alt="Play">
+            <img class="pause-icon" src="img/pause.png" alt="Pause" style="display:none;">
+        </button>
+        <button id="music-next" class="player-btn">
+            <img src="img/next.png" alt="Next">
+        </button>
+        <button id="music-like" class="player-btn secondary-btn">
+            <img src="img/like0.png" alt="Like">
+        </button>
+    </div>
+  </div>
 
 
 <div id="update-notification" class="update-popup glass hidden">
