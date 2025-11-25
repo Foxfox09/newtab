@@ -555,7 +555,7 @@ function runCmd(raw) {
 
   if (!parsed) {
     if (raw.trim()) {
-      saveSearch(raw.trim());
+      // saveSearch(raw.trim());
       window.open(buildSearchUrl(raw.trim()), '_self');
     }
     query.value = '';
@@ -685,7 +685,7 @@ board.addEventListener('click', e=>{
   const wrapper=e.target.closest('.icon-wrapper');
   if(!wrapper||isDragging) return;
   if(wrapper.dataset.link){
-    recordSite(wrapper.dataset.link);
+    // recordSite(wrapper.dataset.link);
     window.open(wrapper.dataset.link,'_self');
   }
 });
