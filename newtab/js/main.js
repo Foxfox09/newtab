@@ -103,19 +103,20 @@ const musicPlayer = document.getElementById('music-player');
 
 // --- NEW: player render ---
 const playerRender = {
-  serverTime: 0,        // seconds (from content script)
-  displayedTime: 0,     // seconds (what we render)
-  duration: 0,          // seconds
+  serverTime: 0,        
+  displayedTime: 0,     
+  duration: 0,          
   playing: false,
   title: '',
   artist: '',
   cover: '',
   liked: false,
   disliked: false,
+  likeStatus: 'INDIFFERENT',
   serverTimestamp: Date.now()
 };
 
-// --- NEW: remember last UI to avoid unnecessary re-renders that reset animations/progress ---
+
 const lastUI = { title: '', artist: '', cover: '' };
 
 const DISCONNECT_THRESHOLD = 3; 
@@ -139,7 +140,7 @@ function updatePlayerUIImmediate(data) {
 	if (musicTitle) musicTitle.textContent = data.title || 'Not Playing';
 	if (musicArtist) musicArtist.textContent = data.artist || '';
 
-	// Встановлюємо обкладинку або placeholder
+	//обкладенка
 	if (musicCover) {
 		if (data.cover) {
 			if (musicCover.src !== data.cover) musicCover.src = data.cover;
@@ -148,13 +149,13 @@ function updatePlayerUIImmediate(data) {
 		}
 	}
 
-	// Оновлення marquee (якщо є довгий текст)
+	
 	setTimeout(updatePlayerUITextAndMarquee, 60);
 }
 
 
 function ensureMarqueeStyle() {
-    // inject style once
+   
     if (document.getElementById('marquee-style')) return;
     const style = document.createElement('style');
     style.id = 'marquee-style';
@@ -181,7 +182,7 @@ function applyMarqueeIfNeeded(el) {
     if (!el) return;
     ensureMarqueeStyle();
 
-    // ensure there's an inner .marquee span
+    
     let inner = el.querySelector('.marquee');
     if (!inner) {
         inner = document.createElement('span');
@@ -191,7 +192,7 @@ function applyMarqueeIfNeeded(el) {
         el.appendChild(inner);
     }
 
-    // Attach listeners only once
+    
     if (el.dataset.marqueeAttached) return;
 
     el.addEventListener('mouseenter', () => {
@@ -199,7 +200,7 @@ function applyMarqueeIfNeeded(el) {
 
         if (shift <= 4) return;
 
-        // Встановлюємо властивості анімації. Вона матиме вищий пріоритет, ніж transition.
+       
         inner.style.setProperty('--marquee-shift', `-${shift}px`);
         const duration = Math.max(6, Math.round((shift / 30) * 10) / 10);
         inner.style.animation = `marquee ${duration}s linear infinite`;
@@ -213,7 +214,7 @@ function applyMarqueeIfNeeded(el) {
     el.dataset.marqueeAttached = '1';
 }
 
-// updatePlayerUITextAndMarquee reuses applyMarqueeIfNeeded
+
 function updatePlayerUITextAndMarquee() {
 	const titleEl = document.getElementById('music-title');
 	const artistEl = document.getElementById('music-artist');
@@ -221,7 +222,7 @@ function updatePlayerUITextAndMarquee() {
 
 	[titleEl, artistEl].forEach(el => {
 		if (!el) return;
-		// If updatePlayerUIImmediate changed outer text, sync inner
+
 		let inner = el.querySelector('.marquee');
 		if (inner) {
 			if (el.textContent.trim() && inner.textContent.trim() !== el.textContent.trim()) {
@@ -334,11 +335,11 @@ query.addEventListener('keydown', e => {
   // === Обробка inline-підказки (Google) ===
   if (state.currentInlineSuggestion) {
     if (e.key === 'Enter') {
-      // Якщо ми вже обробляємо Enter — нічого не робимо повторно
+     
       if (_handlingEnter) return;
       _handlingEnter = true;
       e.preventDefault();
-      // Виконуємо запит (inline suggestion)
+    
       runCmd(state.currentInlineSuggestion);
       setTimeout(() => { _handlingEnter = false; }, 60);
       return;
@@ -367,12 +368,12 @@ query.addEventListener('keydown', e => {
       else if (e.key === 'ArrowUp') state.selectedCmdIndex = (state.selectedCmdIndex - 1 + max) % max;
       updateCmdSelection();
     } else if (e.key === 'Tab') {
-      // TAB — підставляє текст, не виконує
+    
       e.preventDefault();
       if (state.selectedCmdIndex < 0 && currentSuggestions.length > 0) {
-        state.selectedCmdIndex = 0; // якщо нічого не виділено — підставляємо перший
+        state.selectedCmdIndex = 0; 
       }
-      // підставити (але не виконувати)
+      // підставити 
       const sug = state.currentDisplayedSuggestions[state.selectedCmdIndex];
       if (sug) {
         if (sug.type === 'command' && sug.rawCommand) {
@@ -384,14 +385,13 @@ query.addEventListener('keydown', e => {
       hideSuggestions();
       query.focus();
     } else if (e.key === 'Enter') {
-      // ENTER — виконує дію. Виконуємо завжди над виділеним або першим елементом.
-      // Уникаємо подвійного виконання
+     
       if (_handlingEnter) return;
       _handlingEnter = true;
       e.preventDefault();
 
       if (state.selectedCmdIndex < 0 && currentSuggestions.length > 0) {
-        state.selectedCmdIndex = 0; // якщо нічого не виділено — обираємо перший
+        state.selectedCmdIndex = 0; 
         updateCmdSelection();
       }
       selectCurrentSuggestion();
@@ -402,7 +402,7 @@ query.addEventListener('keydown', e => {
     return;
   }
 
-  // === Enter для звичайного пошуку або команди (коли список не відкритий) ===
+ 
   if (e.key === 'Enter') {
     if (_handlingEnter) return;
     _handlingEnter = true;
@@ -488,7 +488,7 @@ query.addEventListener('input', () => {
     if(!unique.length){ cmdList.style.display='none'; return; }
 
     const topSuggestion = unique[0];
-    // Зберігаємо регістр користувача у фантомному тексті
+   
     if (topSuggestion && topSuggestion.toLowerCase().startsWith(q) && topSuggestion.length > q.length) {
       state.currentInlineSuggestion = topSuggestion;
       const remainingPart = topSuggestion.slice(q.length);
@@ -625,7 +625,7 @@ function runCmd(raw) {
     const homeUrl = 'https://music.youtube.com/';
     const targetUrl = songQuery ? searchUrl : homeUrl;
 
-    // Use chrome.tabs API to find and update or create a YT Music tab
+    //YT Music tab
     chrome.tabs.query({ url: "*://music.youtube.com/*" }, (tabs) => {
       if (tabs.length > 0) {
         chrome.tabs.update(tabs[0].id, { url: targetUrl, active: true });
@@ -716,8 +716,22 @@ function initMusicPlayer() {
   document.getElementById('music-play')?.addEventListener('click', () => sendPlayerCmd('playPause'));
   document.getElementById('music-prev')?.addEventListener('click', () => sendPlayerCmd('prev'));
   document.getElementById('music-next')?.addEventListener('click', () => sendPlayerCmd('next'));
-  document.getElementById('music-like')?.addEventListener('click', () => sendPlayerCmd('like'));
-  document.getElementById('music-dislike')?.addEventListener('click', () => sendPlayerCmd('dislike'));
+  document.getElementById('music-like')?.addEventListener('click', (e) => {
+    const likeStatus = e.currentTarget.getAttribute('like-status');
+    if (likeStatus === 'LIKE') {
+      sendPlayerCmd('like');
+    } else {
+      sendPlayerCmd('like');
+    }
+  });
+  document.getElementById('music-dislike')?.addEventListener('click', (e) => {
+    const likeStatus = e.currentTarget.getAttribute('like-status');
+    if (likeStatus === 'DISLIKE') {
+      sendPlayerCmd('dislike'); 
+    } else {
+      sendPlayerCmd('dislike');
+    }
+  });
 
   const openYTMusic = () => {
     if (document.getElementById('music-title').textContent === 'Not Playing') {
@@ -744,15 +758,22 @@ function initMusicPlayer() {
         }
 
 
-        // store server values (always)
+        
         playerRender.serverTime = Number(d.currentTime || 0);
         playerRender.duration = Number(d.duration || 0);
         playerRender.playing = !!d.playing;
         playerRender.liked = !!d.liked;
         playerRender.disliked = !!d.disliked;
+        if (d.liked) {
+          playerRender.likeStatus = 'LIKE';
+        } else if (d.disliked) {
+          playerRender.likeStatus = 'DISLIKE';
+        } else {
+          playerRender.likeStatus = 'INDIFFERENT';
+        }
         playerRender.serverTimestamp = Date.now();
 
-        // Only update title/artist/cover UI if they've changed — prevents marquee/hover side-effects
+       
         const titleChanged = (d.title || '') !== lastUI.title;
         const artistChanged = (d.artist || '') !== lastUI.artist;
         const coverChanged = (d.cover || '') !== lastUI.cover;
@@ -762,13 +783,13 @@ function initMusicPlayer() {
           lastUI.artist = d.artist || '';
           lastUI.cover = d.cover || '';
 
-          // update stored values and UI text/cover
+         
           playerRender.title = lastUI.title;
           playerRender.artist = lastUI.artist;
           playerRender.cover = lastUI.cover;
 
           updatePlayerUIImmediate({ title: playerRender.title, artist: playerRender.artist, cover: playerRender.cover });
-          // marquee recalculation happens inside updatePlayerUIImmediate via updatePlayerUITextAndMarquee
+        
         } else {
           // keep titles as-is (no DOM text writes)
           if (d.title && !playerRender.title) playerRender.title = d.title;
@@ -804,6 +825,8 @@ function initMusicPlayer() {
       const musicTotalTime = document.getElementById('music-total-time');
       const playIcon = document.querySelector('#music-play .play-icon');
       const pauseIcon = document.querySelector('#music-play .pause-icon');
+      const likeBtn = document.getElementById('music-like');
+      const dislikeBtn = document.getElementById('music-dislike');
       const likeBtnImg = document.querySelector('#music-like img');
       const dislikeBtnImg = document.querySelector('#music-dislike img');
 
@@ -817,11 +840,26 @@ function initMusicPlayer() {
         pauseIcon.style.display = playerRender.playing ? 'block' : 'none';
       }
 
-      if (likeBtnImg) {
-        likeBtnImg.src = playerRender.liked ? 'img/like1.png' : 'img/like0.png';
-      }
-      if (dislikeBtnImg) {
-        dislikeBtnImg.src = playerRender.disliked ? 'img/dislike1.png' : 'img/dislike0.png';
+      if (likeBtn && dislikeBtn && likeBtnImg && dislikeBtnImg) {
+        const likeStatus = playerRender.likeStatus || 'INDIFFERENT';
+        likeBtn.setAttribute('like-status', likeStatus);
+        dislikeBtn.setAttribute('like-status', likeStatus);
+
+        switch (likeStatus) {
+          case 'LIKE':
+            likeBtnImg.src = 'img/like1.png';
+            dislikeBtnImg.src = 'img/dislike0.png';
+            break;
+          case 'DISLIKE':
+            likeBtnImg.src = 'img/like0.png';
+            dislikeBtnImg.src = 'img/dislike1.png';
+            break;
+          case 'INDIFFERENT':
+          default:
+            likeBtnImg.src = 'img/like0.png';
+            dislikeBtnImg.src = 'img/dislike0.png';
+            break;
+        }
       }
 
       requestAnimationFrame(tick);
@@ -832,7 +870,7 @@ function initMusicPlayer() {
   }
 }
 
-/* Історія */
+/* Історія 
 const SEARCH_KEY='search_history';
 function getHistory(){ return JSON.parse(localStorage.getItem(SEARCH_KEY)||'[]'); }
 function saveSearch(q){
@@ -841,15 +879,15 @@ function saveSearch(q){
   if(!h.includes(q)) h.unshift(q);
   if(h.length>20) h=h.slice(0,20);
   localStorage.setItem(SEARCH_KEY,JSON.stringify(h));
-}
+} */
 
-/* Запис відвідуваних сайтів */
+/* Запис відвідуваних сайтів 
 const SITE_KEY = 'frequent_sites';
 function recordSite(url) {
   let sites = JSON.parse(localStorage.getItem(SITE_KEY) || '{}');
   sites[url] = (sites[url] || 0) + 1;
-  localStorage.setItem(SITE_KEY, JSON.stringify(sites));
-}
+  localStorage.setItem(SITE_KEY, JSON.stringify(sites)); 
+} */
 
 /* Ініціалізація */
 initDB().then(()=>{ 
