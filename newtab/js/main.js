@@ -89,7 +89,7 @@ const state = {
   isButtonVisible: true,
   isPlayerVisible: false
   ,fontSize: '16px'
-  ,fontFamily: 'system-ui, Segoe UI, Roboto, Helvetica, Arial'
+  ,fontFamily:   'Inter, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
   ,customFontUrl: null
   ,fontData: null
 };
