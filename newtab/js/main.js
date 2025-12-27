@@ -2,6 +2,8 @@
 const DB_NAME = 'SearchPageDB';
 const STORE_NAME = 'StateStore';
 let db;
+// Контекст завантаження файлу: 'bg' або 'font'
+let uploadContext = 'bg';
 
 function initDB() {
   return new Promise((resolve, reject) => {
@@ -66,6 +68,8 @@ const COMMANDS = [
   {key:'//textcolor', short:'Встановити кольір тексту', desc:'//textcolor <hex або назва> — напр., //textcolor #000000ff або //textcolor red'},
   {key:'//setsearch', short:'Встановити пошук за замовчуванням', desc:'//setsearch <keyword|url_template> — приклад: //setsearch google або //setsearch https://duckduckgo.com/?q=%s'},
   {key:'//togglebutton', short:'Показати/сховати кнопку', desc:'//togglebutton <on|off> — вмикає або вимикає кнопку "Виконати".'},
+  {key:'//fontsize', short:'Розмір шрифту', desc:'//fontsize <px> — змінити розмір шрифту (напр., //fontsize 18).'},
+  {key:'//font', short:'Шрифт', desc:'//font <URL|Name> — змінити шрифт (напр., //font Arial або посилання на шрифт).'},
   // {key:'//play', short:'Знайти музику', desc:'//play <назва пісні> — шукає музику на YouTube Music.'},
   {key:'//player', short:'Показати/сховати плеєр', desc:'//player <on|off> — вмикає або вимикає музичний плеєр.'}
 ];
@@ -84,134 +88,167 @@ const state = {
   currentInlineSuggestion: null,
   isButtonVisible: true,
   isPlayerVisible: false
+  ,fontSize: '16px'
+  ,fontFamily: 'system-ui, Segoe UI, Roboto, Helvetica, Arial'
+  ,customFontUrl: null
+  ,fontData: null
 };
 
 const bgImg = document.getElementById('bgImg');
 const bgVideo = document.getElementById('bgVideo');
 const board = document.getElementById('board');
 const fileInput = document.getElementById('fileInput');
+const musicPlayer = document.getElementById('music-player');
+const closeUpdatePopup = document.getElementById('close-update-popup');
+const updateNotification = document.getElementById('update-notification');
 const query = document.getElementById('query');
 const queryGhost = document.getElementById('query-ghost');
 const cmdList = document.getElementById('cmdList');
 const cmdModal = document.getElementById('cmdModal');
-const modalTitle = document.getElementById('modalTitle');
-const modalDesc = document.getElementById('modalDesc');
-const closeModal = document.getElementById('closeModal');
-const updateNotification = document.getElementById('update-notification');
-const closeUpdatePopup = document.getElementById('close-update-popup');
-const musicPlayer = document.getElementById('music-player');
 
-// --- NEW: player render ---
+// Music player rendering state
 const playerRender = {
-  serverTime: 0,        
-  displayedTime: 0,     
-  duration: 0,          
+  serverTime: 0,
+  serverTimestamp: null,
+  displayedTime: 0,
+  duration: 0,
   playing: false,
-  title: '',
-  artist: '',
-  cover: '',
   liked: false,
   disliked: false,
-  likeStatus: 'INDIFFERENT',
-  serverTimestamp: Date.now()
+  likeStatus: 'INDIFFERENT', 
+  title: '',
+  artist: '',
+  cover: null
 };
 
-
-const lastUI = { title: '', artist: '', cover: '' };
-
-const DISCONNECT_THRESHOLD = 3; 
+// Disconnect detection for music player
 let disconnectCounter = 0;
-let controlsHideTimer = null;
+const DISCONNECT_THRESHOLD = 3;
 
-function formatTimeSeconds(s) {
-  s = Math.max(0, Number(s) || 0);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = Math.floor(s % 60);
-  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
-  return `${m}:${String(sec).padStart(2,'0')}`;
+
+
+
+let lastUI = { title: '', artist: '', cover: '' };
+
+
+function formatTimeSeconds(seconds) {
+  if (typeof seconds !== 'number' || isNaN(seconds)) return '0:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
+
+
+function safeVibrate(pattern) {
+  try {
+    if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) {
+      navigator.vibrate(pattern);
+    }
+  } catch (e) {
+  }
+}
+
 
 function updatePlayerUIImmediate(data) {
-	const musicTitle = document.getElementById('music-title');
-	const musicArtist = document.getElementById('music-artist');
-	const musicCover = document.getElementById('music-cover');
+  if (!data) return;
+  
+  const titleEl = document.getElementById('music-title');
+  const artistEl = document.getElementById('music-artist');
+  const coverEl = document.getElementById('music-cover');
+  
+  if (titleEl) {
+    titleEl.textContent = data.title || 'Невідомий трек';
+  }
+  if (artistEl) {
+    artistEl.textContent = data.artist || 'Невідомий виконавець';
+  }
 
-	if (musicTitle) musicTitle.textContent = data.title || 'Not Playing';
-	if (musicArtist) musicArtist.textContent = data.artist || '';
-
-	//обкладенка
-	if (musicCover) {
-		if (data.cover) {
-			if (musicCover.src !== data.cover) musicCover.src = data.cover;
-		} else {
-			musicCover.src = 'img/search_icon.png';
-		}
-	}
-
-	
-	setTimeout(updatePlayerUITextAndMarquee, 60);
+  if (coverEl) {
+    if (data.cover) {
+      try {
+        coverEl.onerror = () => {
+          // hide or clear on error
+          coverEl.classList.add('no-cover');
+          coverEl.removeAttribute('src');
+        };
+        coverEl.classList.remove('no-cover');
+        coverEl.src = data.cover;
+        coverEl.style.display = '';
+      } catch (e) {
+        coverEl.classList.add('no-cover');
+        coverEl.removeAttribute('src');
+      }
+    } else {
+      coverEl.classList.add('no-cover');
+      coverEl.removeAttribute('src');
+    }
+  }
+  
+  if ('mediaSession' in navigator && playerRender) {
+    const title = playerRender.title || 'Невідомий трек';
+    const artist = playerRender.artist || 'Невідомий виконавець';
+    
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: title,
+        artist: artist,
+        artwork: playerRender.cover ? [{ src: playerRender.cover, sizes: '512x512', type: 'image/png' }] : []
+      });
+    } catch (e) {
+    }
+  }
+  
+  updatePlayerUITextAndMarquee();
 }
 
-
 function ensureMarqueeStyle() {
-   
-    if (document.getElementById('marquee-style')) return;
-    const style = document.createElement('style');
-    style.id = 'marquee-style';
-    style.textContent = `
-    .track-info { overflow: hidden; position: relative; }
-    .track-info .marquee { 
-        display: inline-block; 
-        white-space: nowrap; 
-        transform: translateX(0); 
-        will-change: transform; 
-        /* Додаємо transition для плавного повернення */
-        transition: transform 0.4s ease-out;
-    }
-    @keyframes marquee {
-      0% { transform: translateX(0); }
-      50% { transform: translateX(var(--marquee-shift)); }
-      100% { transform: translateX(0); }
-    }
-    `;
-    document.head.appendChild(style);
+  if (document.getElementById('marquee-style')) return;
+  const style = document.createElement('style');
+  style.id = 'marquee-style';
+  style.textContent = `
+  .track-info { overflow: hidden; position: relative; }
+  .track-info .marquee { 
+    display: inline-block; 
+    white-space: nowrap; 
+    transform: translateX(0); 
+    will-change: transform; 
+    transition: transform 0.4s ease-out;
+  }
+  @keyframes marquee {
+    0% { transform: translateX(0); }
+    50% { transform: translateX(var(--marquee-shift)); }
+    100% { transform: translateX(0); }
+  }
+  `;
+  document.head.appendChild(style);
 }
 
 function applyMarqueeIfNeeded(el) {
-    if (!el) return;
-    ensureMarqueeStyle();
+  if (!el) return;
+  ensureMarqueeStyle();
+  let inner = el.querySelector('.marquee');
+  if (!inner) {
+    inner = document.createElement('span');
+    inner.className = 'marquee';
+    inner.textContent = el.textContent.trim();
+    el.textContent = '';
+    el.appendChild(inner);
+  }
+  if (el.dataset.marqueeAttached) return;
 
-    
-    let inner = el.querySelector('.marquee');
-    if (!inner) {
-        inner = document.createElement('span');
-        inner.className = 'marquee';
-        inner.textContent = el.textContent.trim();
-        el.textContent = '';
-        el.appendChild(inner);
-    }
+  el.addEventListener('mouseenter', () => {
+    const shift = Math.max(0, inner.scrollWidth - el.clientWidth);
+    if (shift <= 4) return;
+    inner.style.setProperty('--marquee-shift', `-${shift}px`);
+    const duration = Math.max(6, Math.round((shift / 30) * 10) / 10);
+    inner.style.animation = `marquee ${duration}s linear infinite`;
+  });
 
-    
-    if (el.dataset.marqueeAttached) return;
+  el.addEventListener('mouseleave', () => {
+    inner.style.animation = '';
+  });
 
-    el.addEventListener('mouseenter', () => {
-        const shift = Math.max(0, inner.scrollWidth - el.clientWidth);
-
-        if (shift <= 4) return;
-
-       
-        inner.style.setProperty('--marquee-shift', `-${shift}px`);
-        const duration = Math.max(6, Math.round((shift / 30) * 10) / 10);
-        inner.style.animation = `marquee ${duration}s linear infinite`;
-    });
-
-    el.addEventListener('mouseleave', () => {
-    
-        inner.style.animation = '';
-    });
-
-    el.dataset.marqueeAttached = '1';
+  el.dataset.marqueeAttached = '1';
 }
 
 
@@ -235,7 +272,7 @@ function updatePlayerUITextAndMarquee() {
 	});
 }
 
-/* збереження/загрузка */
+
 async function loadState(){
   try{
     const savedState = await dbGet('search_state');
@@ -246,6 +283,7 @@ async function loadState(){
     applyStyle();
     applyButtonVisibility(); 
     applyPlayerVisibility();
+    await applyFontSettings();
   }catch(e){console.warn('Не вдалося завантажити стан з DB', e)}
 }
 
@@ -287,6 +325,45 @@ function applyStyle() {
     document.body.classList.add('style-2');
   } else {
     document.body.classList.remove('style-2');
+  }
+}
+
+// Застосувати шрифт/розмір інтерфейсу
+async function applyFontSettings() {
+  try {
+    if (state.fontSize) {
+      document.documentElement.style.setProperty('--ui-font-size', state.fontSize);
+    }
+
+    const tryLoadFontFrom = async (src) => {
+      const fontName = 'CustomUIFont';
+      const font = new FontFace(fontName, `url(${src})`);
+      await font.load();
+      document.fonts.add(font);
+      document.documentElement.style.setProperty('--ui-font-family', fontName);
+    };
+
+    if (state.fontData) {
+      try {
+        let src = state.fontData;
+        if (state.fontData instanceof File) src = URL.createObjectURL(state.fontData);
+        await tryLoadFontFrom(src);
+      } catch (e) {
+        console.warn('Не вдалося завантажити шрифт із fontData:', e);
+        if (state.fontFamily) document.documentElement.style.setProperty('--ui-font-family', state.fontFamily);
+      }
+    } else if (state.customFontUrl) {
+      try {
+        await tryLoadFontFrom(state.customFontUrl);
+      } catch (e) {
+        console.warn('Не вдалося завантажити шрифт із customFontUrl:', e);
+        if (state.fontFamily) document.documentElement.style.setProperty('--ui-font-family', state.fontFamily);
+      }
+    } else if (state.fontFamily) {
+      document.documentElement.style.setProperty('--ui-font-family', state.fontFamily);
+    }
+  } catch (e) {
+    console.warn('applyFontSettings error', e);
   }
 }
 
@@ -555,7 +632,6 @@ function runCmd(raw) {
 
   if (!parsed) {
     if (raw.trim()) {
-      // saveSearch(raw.trim());
       window.open(buildSearchUrl(raw.trim()), '_self');
     }
     query.value = '';
@@ -566,9 +642,51 @@ function runCmd(raw) {
   const cmd = parsed.cmd;
   let executed = true;
 
+  // Обробка шрифтових команд
+  if (cmd === '//fontsize') {
+    const val = parts[1];
+    if (val) {
+      // Якщо ввели просто число, додаємо px, інакше лишаємо як є
+      const size = isNaN(parseFloat(val)) ? val : val + 'px';
+      state.fontSize = size;
+      saveState();
+      applyFontSettings();
+      query.value = '';
+    }
+    return;
+  }
+
+  if (cmd === '//font') {
+    const val = parts.slice(1).join(' ').trim();
+    if (!val) {
+      // Відкриваємо вибір файлу для шрифта
+      uploadContext = 'font';
+      fileInput.accept = '.ttf,.otf,.woff,.woff2';
+      fileInput.click();
+    } else {
+      if (val.startsWith('http')) {
+        // URL шрифту
+        state.fontData = val; 
+        state.customFontUrl = val;
+        state.fontFamily = 'CustomUIFont';
+      } else {
+        state.customFontUrl = null;
+        state.fontData = null;
+        state.fontFamily = val;
+      }
+      saveState();
+      applyFontSettings();
+      query.value = '';
+    }
+    return;
+  }
   if (cmd === '//bg') {
     const url = parts[1];
-    if (!url) { fileInput.click(); }
+    if (!url) {
+      uploadContext = 'bg';
+      fileInput.accept = 'image/*,video/mp4';
+      fileInput.click();
+    }
     else {
       state.bgType = url.toLowerCase().endsWith('.mp4') ? 'video' : 'image';
       state.bgData = url; applyBackground(); saveState();
@@ -660,10 +778,10 @@ function runCmd(raw) {
 }
 
 /* Іконки */
-function createItemDOM(it){
+function createItemDOM(it, index){
   if(it.type!=='icon') return;
   const el=document.createElement('div');
-  el.className='icon-wrapper'; el.dataset.id=it.id; el.dataset.link=it.linkUrl;
+  el.className='icon-wrapper'; el.dataset.id=it.id; el.dataset.link=it.linkUrl; el.dataset.index = index;
 
   const img=document.createElement('img'); img.src=it.iconUrl;
   const del=document.createElement('button'); del.className='delete-btn'; del.innerText='✕';
@@ -673,11 +791,32 @@ function createItemDOM(it){
     renderBoard(); saveState();
   });
 
+  el.onmouseup = (e) => {
+    if (isDragging) return;
+    const url = it.linkUrl || it.link || it.url;
+    if (!url) return;
+    if (e.button === 0) {
+      window.open(url, '_self');
+    } else if (e.button === 1) {
+      e.preventDefault();
+      window.open(url, '_blank');
+    }
+  };
+
+  el.oncontextmenu = (e) => {
+    if ('ontouchstart' in window) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+  };
+
+
   el.appendChild(img); el.appendChild(del); board.appendChild(el);
 }
 
 function renderBoard(){
-  board.innerHTML=''; state.items.forEach(it=>createItemDOM(it));
+  board.innerHTML=''; state.items.forEach((it,i)=>createItemDOM(it,i));
 }
 
 let isDragging=false;
@@ -685,21 +824,114 @@ board.addEventListener('click', e=>{
   const wrapper=e.target.closest('.icon-wrapper');
   if(!wrapper||isDragging) return;
   if(wrapper.dataset.link){
-    // recordSite(wrapper.dataset.link);
     window.open(wrapper.dataset.link,'_self');
   }
 });
 
-function initSortable(){
-  if(typeof Sortable==='undefined') return;
-  new Sortable(board,{
-    animation:150,
-    ghostClass:'sortable-ghost',
-    onStart:()=>isDragging=true,
-    onEnd:evt=>{
-      const newOrder=[...board.children].map(el=>parseInt(el.dataset.id));
-      state.items.sort((a,b)=>newOrder.indexOf(a.id)-newOrder.indexOf(b.id));
-      saveState(); setTimeout(()=>isDragging=false,50);
+function initSortable() {
+  if (typeof Sortable === 'undefined') return;
+
+  const trashZone = document.getElementById('trash-zone');
+  const boardElement = board; 
+  let isOverTrash = false; 
+
+  new Sortable(boardElement, {
+    animation: 200,
+    delay: 300,
+    delayOnTouchOnly: true,
+  
+  forceFallback: true, 
+  fallbackClass: 'sortable-drag',
+  chosenClass: 'sortable-chosen',
+  ghostClass: 'sortable-ghost',
+
+    onStart: (evt) => {
+      const oe = evt.originalEvent || {};
+      const isTouch = (oe.type && typeof oe.type === 'string' && oe.type.startsWith('touch')) || (oe.pointerType === 'touch');
+      if (isTouch && trashZone) {
+        trashZone.classList.add('trash-visible');
+      }
+      safeVibrate(50);
+      isOverTrash = false;
+    },
+
+    onMove: (evt, originalEvent) => {
+      if (!trashZone) return;
+      let clientX = null, clientY = null;
+      const oe = originalEvent || evt.originalEvent || window.event || {};
+      if (oe.touches && oe.touches[0]) {
+        clientX = oe.touches[0].clientX; clientY = oe.touches[0].clientY;
+      } else if (oe.changedTouches && oe.changedTouches[0]) {
+        clientX = oe.changedTouches[0].clientX; clientY = oe.changedTouches[0].clientY;
+      } else if (typeof evt.clientX === 'number' && typeof evt.clientY === 'number') {
+        clientX = evt.clientX; clientY = evt.clientY;
+      } else if (typeof oe.clientX === 'number' && typeof oe.clientY === 'number') {
+        clientX = oe.clientX; clientY = oe.clientY;
+      }
+
+      if ((clientX === null || clientY === null) && typeof document !== 'undefined') {
+        const helper = document.querySelector('.sortable-fallback');
+        if (helper) {
+          const r = helper.getBoundingClientRect();
+          clientX = r.left + r.width / 2;
+          clientY = r.top + r.height / 2;
+        }
+      }
+      if (clientX === null || clientY === null) return;
+      const rect = trashZone.getBoundingClientRect();
+      const checkOver = (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom);
+      if (checkOver !== isOverTrash) {
+        isOverTrash = checkOver;
+        if (isOverTrash) {
+          trashZone.classList.add('trash-active');
+          trashZone.innerText = "🗑️ Відпустіть!";
+        } else {
+          trashZone.classList.remove('trash-active');
+          trashZone.innerText = "🗑️ Видалити";
+        }
+      }
+    },
+
+    onEnd: (evt) => {
+      if (trashZone) {
+        trashZone.classList.remove('trash-visible', 'trash-active');
+        trashZone.innerText = "🗑️";
+      }
+
+
+      let isDeleted = false;
+      if (isOverTrash) {
+        if (confirm('Видалити цю іконку?')) {
+          const itemEl = evt.item;
+          const idToDelete = itemEl && itemEl.dataset ? itemEl.dataset.id : null;
+          if (idToDelete) {
+            state.items = state.items.filter(i => i.id != idToDelete);
+          } else {
+            state.items.splice(evt.oldIndex, 1);
+          }
+          itemEl && itemEl.remove();
+          saveState();
+          isDeleted = true;
+        } else {
+          renderBoard();
+        }
+      }
+
+      if (!isDeleted) {
+        const newOrderIds = Array.from(boardElement.children).map(el => el.dataset.id);
+        if (state.items[0] && state.items[0].id !== undefined) {
+          const reordered = [];
+          newOrderIds.forEach(id => {
+            const it = state.items.find(x => String(x.id) === String(id));
+            if (it) reordered.push(it);
+          });
+          state.items = reordered;
+        } else {
+          const moved = state.items.splice(evt.oldIndex, 1)[0];
+          state.items.splice(evt.newIndex, 0, moved);
+        }
+        saveState();
+      }
     }
   });
 }
@@ -791,7 +1023,6 @@ function initMusicPlayer() {
           updatePlayerUIImmediate({ title: playerRender.title, artist: playerRender.artist, cover: playerRender.cover });
         
         } else {
-          // keep titles as-is (no DOM text writes)
           if (d.title && !playerRender.title) playerRender.title = d.title;
           if (d.artist && !playerRender.artist) playerRender.artist = d.artist;
           if (d.cover && !playerRender.cover) playerRender.cover = d.cover;
@@ -799,27 +1030,26 @@ function initMusicPlayer() {
       }
     });
 
-    // poll every 1s
     setInterval(() => {
       if (state.isPlayerVisible) sendPlayerCmd('getInfo');
     }, 1000);
 
-    // --- start animation loop for smooth progress ---
+
     (function tick() {
       const now = Date.now();
       const elapsed = (now - (playerRender.serverTimestamp || now)) / 1000;
       const target = playerRender.serverTime + (playerRender.playing ? elapsed : 0);
 
-      // alpha smoothing: playing -> smoother, paused -> quicker snap
+
       const alpha = playerRender.playing ? 0.15 : 0.25;
       if (typeof playerRender.displayedTime !== 'number') playerRender.displayedTime = playerRender.serverTime;
       playerRender.displayedTime += (target - playerRender.displayedTime) * alpha;
 
-      // clamp between 0 and duration
+
       if (playerRender.displayedTime < 0) playerRender.displayedTime = 0;
       if (playerRender.duration > 0 && playerRender.displayedTime > playerRender.duration) playerRender.displayedTime = playerRender.duration;
 
-      // update UI
+
       const musicProgress = document.getElementById('music-progress');
       const musicCurrentTime = document.getElementById('music-current-time');
       const musicTotalTime = document.getElementById('music-total-time');
@@ -865,31 +1095,11 @@ function initMusicPlayer() {
       requestAnimationFrame(tick);
     })();
 
-    // initial poll if visible
     if (state.isPlayerVisible) sendPlayerCmd('getInfo');
   }
 }
 
-/* Історія 
-const SEARCH_KEY='search_history';
-function getHistory(){ return JSON.parse(localStorage.getItem(SEARCH_KEY)||'[]'); }
-function saveSearch(q){
-  if(!q) return;
-  let h=getHistory();
-  if(!h.includes(q)) h.unshift(q);
-  if(h.length>20) h=h.slice(0,20);
-  localStorage.setItem(SEARCH_KEY,JSON.stringify(h));
-} */
 
-/* Запис відвідуваних сайтів 
-const SITE_KEY = 'frequent_sites';
-function recordSite(url) {
-  let sites = JSON.parse(localStorage.getItem(SITE_KEY) || '{}');
-  sites[url] = (sites[url] || 0) + 1;
-  localStorage.setItem(SITE_KEY, JSON.stringify(sites)); 
-} */
-
-/* Ініціалізація */
 initDB().then(()=>{ 
   loadState(); 
   setTimeout(initSortable,80); 
@@ -906,7 +1116,7 @@ function buildSearchUrl(q){
   return tmpl + (tmpl.includes('?')?'&':'?')+'q='+encoded;
 }
 
-/* Update Checker */
+
 function isNewerVersion(remote, local) {
   const remoteStr = String(remote || '0');
   const localStr = String(local || '0');

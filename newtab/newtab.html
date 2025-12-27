@@ -16,12 +16,20 @@
 <meta name="theme-color" content="#ffffff">
 
 <style>
-  :root{
+  :root {
     --input-color: #ffffff;
     --input-placeholder: rgba(255,255,255,0.75);
     --input-text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    --ui-font-size: 16px;
+    --ui-font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   }
-  html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial}
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: var(--ui-font-family);
+    font-size: var(--ui-font-size);
+  }
   #app{position:relative;height:100%;overflow:hidden;background:#111;color:#fff}
   #bgImg, #bgVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
   #overlay{position:absolute;inset:0;z-index:1;background:rgba(0,0,0,0.15);}
@@ -54,14 +62,16 @@
     display: flex;
     border-radius: 12px;
   }
-  .search{
-    flex:1;
-    height:56px;
-    padding:12px 18px;
-    border-radius:12px;
+  .search {
+    flex: 1;
+    height: 56px;
+    padding: 12px 18px;
+    border-radius: 12px;
     border: none;
     color: var(--input-color);
-    font-size:16px;
+    
+    font-family: var(--ui-font-family);
+    font-size: var(--ui-font-size);
     outline: none;
     box-sizing: border-box;
     text-shadow: var(--input-text-shadow);
@@ -79,7 +89,12 @@
     color: var(--input-placeholder);
     pointer-events: none; 
   }
-  .search::placeholder { color: var(--input-placeholder); opacity:1; }
+  .search::placeholder {
+    color: var(--input-placeholder);
+    font-family: var(--ui-font-family);
+    font-size: var(--ui-font-size);
+    opacity: 1;
+  }
   .search.glass{ padding-left:18px; }
   .btn{
     height:48px;
@@ -191,16 +206,6 @@
   }
   .icon-wrapper:hover .delete-btn{ opacity: 1; }
   .delete-btn:active{ transform: scale(.95); }
-  .sortable-ghost {
-    opacity: 0.4 !important;
-    transform: scale(1.05);
-    background-color: rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.6);
-  }
-  .sortable-drag {
-    opacity: 0.9 !important;
-    box-shadow: 0 15px 30px rgba(0,0,0,0.7);
-  }
   .icon-wrapper img {
     width: 52px;
     height: 52px;
@@ -236,7 +241,6 @@
     opacity:0.8;
   }
 
-  /* Update Notification */
   .update-popup {
     position: fixed;
     bottom: 20px;
@@ -275,7 +279,7 @@
     padding: 0 0 0 5px;
   }
 
-  /* --- ОНОВЛЕНО: Стиль 2 --- */
+  /* ---  Стиль 2 --- */
   .style-2 .input-container,
   .style-2 .btn,
   .style-2 .icon-wrapper,
@@ -308,7 +312,7 @@
     border-radius: 28px;
   }
 
-  /* Music Player */
+  /* Player */
   #music-player {
     position: fixed;
     bottom: 20px;
@@ -478,10 +482,100 @@
     flex: 1;
     width: auto;
   }
+
+
+ 
+  /* --- СМІТНИК(в процесі) --- */ 
+  #trash-zone {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px); 
+    width: 200px;
+    height: 60px;
+    background-color: rgba(255, 69, 58, 0.95);
+    color: white;
+    border-radius: 30px;
+    
+    display: none; 
+    align-items: center;
+    justify-content: center;
+    
+    font-weight: bold;
+    z-index: 99999; 
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none; 
+  }
+
+
+  #trash-zone.trash-visible {
+    display: flex !important; 
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* --- СМІТНИК --- */
+  #trash-zone {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    width: 200px;
+    height: 60px;
+    background-color: rgba(255, 69, 58, 0.95);
+    color: white;
+    border-radius: 30px;
+    
+    display: none; 
+    align-items: center;
+    justify-content: center;
+    
+    font-weight: bold;
+    z-index: 99999;
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s, background-color 0.2s;
+    pointer-events: none; 
+  }
+
+  #trash-zone.trash-visible {
+    display: flex !important;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  #trash-zone.trash-active {
+    background-color: rgb(255, 0, 0); 
+    transform: translateX(-50%) scale(1.1);
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
+  }
+
+  /* --- СТИЛІ ПЕРЕТЯГУВАННЯ --- */
+
+.sortable-drag {
+  opacity: 0.9 !important; 
+  transform: scale(1.1);   
+  cursor: grabbing;
+  z-index: 100000;        
+  background: transparent; 
+}
+
+
+.sortable-ghost {
+  opacity: 0.4 !important; 
+  background: rgba(255, 255, 255, 0.1); 
+  border-radius: 12px;
+}
+
+.sortable-fallback {
+  opacity: 1 !important;
+}
+
+  .trash-icon { font-size: 22px; line-height: 1; }
+  .sortable-chosen { opacity: 0 !important; visibility: hidden !important; }
 </style>
 </head>
 <body>
-<!-- SVG-фільтр для стилю 2 -->
 <svg width="0" height="0" style="position:absolute">
   <filter id="distorsion">
     <feTurbulence type="fractalNoise" baseFrequency="0.01 0.1" numOctaves="5" seed="2" stitchTiles="stitch" result="noise"/>
@@ -551,6 +645,10 @@
     <p>🎉 Доступне оновлення!</p>
   </a>
   <button id="close-update-popup">✕</button>
+</div>
+
+<div id="trash-zone" class="">
+  <span class="trash-icon">🗑️</span>
 </div>
 
 <script src="js/Sortable.min.js"></script>
