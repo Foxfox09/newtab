@@ -658,28 +658,44 @@ function runCmd(raw) {
 
   if (cmd === '//font') {
     const val = parts.slice(1).join(' ').trim();
-    if (!val) {
-      // Відкриваємо вибір файлу для шрифта
-      uploadContext = 'font';
-      fileInput.accept = '.ttf,.otf,.woff,.woff2';
-      fileInput.click();
+      if (!val) {
+    // Вибір файлу шрифту
+    uploadContext = 'font';
+    fileInput.accept = '.ttf,.otf,.woff,.woff2';
+    fileInput.click();
+  } else {
+    if (val.startsWith('http')) {
+      // URL шрифту
+      state.fontData = val;
+      state.customFontUrl = val;
+      state.fontFamily = 'CustomUIFont';
     } else {
-      if (val.startsWith('http')) {
-        // URL шрифту
-        state.fontData = val; 
-        state.customFontUrl = val;
-        state.fontFamily = 'CustomUIFont';
-      } else {
-        state.customFontUrl = null;
-        state.fontData = null;
-        state.fontFamily = val;
-      }
-      saveState();
-      applyFontSettings();
-      query.value = '';
+      // Назва системного шрифту
+      state.fontData = null;
+      state.customFontUrl = null;
+      state.fontFamily = val;
     }
+
+    applyFontSettings();
+    saveState();
+    query.value = '';
+  }
+  return;
+}
+   // === СКИДАННЯ ШРИФТУ ДО ЗАВОДСЬКОГО ===
+  if (val === 'default' || val === 'reset' || val === '0' || val === 'stock') {
+    state.fontData = null;
+    state.customFontUrl = null;
+    state.fontFamily =
+        'Inter, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+    state.fontSize = '16px'; 
+    applyFontSettings();
+    saveState();
+    alert('Шрифт повернуто до стандартного!');
+    query.value = '';
     return;
   }
+
   if (cmd === '//bg') {
     const url = parts[1];
     if (!url) {
