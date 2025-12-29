@@ -793,164 +793,106 @@ function runCmd(raw) {
   }
 }
 
-/* Іконки */
-function createItemDOM(it, index){
-  if(it.type!=='icon') return;
-  const el=document.createElement('div');
-  el.className='icon-wrapper'; el.dataset.id=it.id; el.dataset.link=it.linkUrl; el.dataset.index = index;
+/* Іконки фікс */
+let dragSrcEl = null;
 
-  const img=document.createElement('img'); img.src=it.iconUrl;
-  const del=document.createElement('button'); del.className='delete-btn'; del.innerText='✕';
-  del.addEventListener('click',e=>{
-    e.stopPropagation();
-    state.items=state.items.filter(x=>x.id!==it.id);
-    renderBoard(); saveState();
-  });
+function renderBoard() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
 
-  el.onmouseup = (e) => {
-    if (isDragging) return;
-    const url = it.linkUrl || it.link || it.url;
-    if (!url) return;
-    if (e.button === 0) {
-      window.open(url, '_self');
-    } else if (e.button === 1) {
+  state.items.forEach((item, index) => {
+    const div = document.createElement('div');
+    div.className = 'icon-wrapper';
+    div.draggable = true;
+    div.dataset.index = index;
+    div.dataset.itemId = item.id; //фікс
+
+    const imgUrl =
+      item.iconUrl ||
+      item.icon ||
+      `https://www.google.com/s2/favicons?sz=64&domain_url=${item.linkUrl || item.url}`;
+
+    div.innerHTML = `
+      <img src="${imgUrl}" alt="icon">
+      <button class="delete-btn" title="Видалити">×</button>
+    `;
+
+    // --- DRAG START ---
+    div.addEventListener('dragstart', e => {
+      dragSrcEl = div;
+      e.dataTransfer.effectAllowed = 'move';
+
+      setTimeout(() => div.classList.add('dragging'), 0);
+    });
+
+    // --- DRAG OVER ---
+    div.addEventListener('dragover', e => {
       e.preventDefault();
-      window.open(url, '_blank');
-    }
-  };
-
-  el.oncontextmenu = (e) => {
-    if ('ontouchstart' in window) {
-      e.preventDefault();
-      e.stopPropagation();
       return false;
-    }
-  };
+    });
 
+    // --- DRAG ENTER (live reorder) ---
+    div.addEventListener('dragenter', () => {
+      if (div === dragSrcEl) return;
 
-  el.appendChild(img); el.appendChild(del); board.appendChild(el);
-}
+      const children = Array.from(board.children);
+      const currentPos = children.indexOf(div);
+      const draggedPos = children.indexOf(dragSrcEl);
 
-function renderBoard(){
-  board.innerHTML=''; state.items.forEach((it,i)=>createItemDOM(it,i));
-}
-
-let isDragging=false;
-board.addEventListener('click', e=>{
-  const wrapper=e.target.closest('.icon-wrapper');
-  if(!wrapper||isDragging) return;
-  if(wrapper.dataset.link){
-    window.open(wrapper.dataset.link,'_self');
-  }
-});
-
-function initSortable() {
-  if (typeof Sortable === 'undefined') return;
-
-  const trashZone = document.getElementById('trash-zone');
-  const boardElement = board; 
-  let isOverTrash = false; 
-
-  new Sortable(boardElement, {
-    animation: 200,
-    delay: 300,
-    delayOnTouchOnly: true,
-  
-  forceFallback: true, 
-  fallbackClass: 'sortable-drag',
-  chosenClass: 'sortable-chosen',
-  ghostClass: 'sortable-ghost',
-
-    onStart: (evt) => {
-      const oe = evt.originalEvent || {};
-      const isTouch = (oe.type && typeof oe.type === 'string' && oe.type.startsWith('touch')) || (oe.pointerType === 'touch');
-      if (isTouch && trashZone) {
-        trashZone.classList.add('trash-visible');
+      if (currentPos > draggedPos) {
+        div.after(dragSrcEl);
+      } else {
+        div.before(dragSrcEl);
       }
-      safeVibrate(50);
-      isOverTrash = false;
-    },
+    });
 
-    onMove: (evt, originalEvent) => {
-      if (!trashZone) return;
-      let clientX = null, clientY = null;
-      const oe = originalEvent || evt.originalEvent || window.event || {};
-      if (oe.touches && oe.touches[0]) {
-        clientX = oe.touches[0].clientX; clientY = oe.touches[0].clientY;
-      } else if (oe.changedTouches && oe.changedTouches[0]) {
-        clientX = oe.changedTouches[0].clientX; clientY = oe.changedTouches[0].clientY;
-      } else if (typeof evt.clientX === 'number' && typeof evt.clientY === 'number') {
-        clientX = evt.clientX; clientY = evt.clientY;
-      } else if (typeof oe.clientX === 'number' && typeof oe.clientY === 'number') {
-        clientX = oe.clientX; clientY = oe.clientY;
-      }
+    // --- DRAG END ---
+    div.addEventListener('dragend', () => {
+      div.classList.remove('dragging');
+      dragSrcEl = null;
+      updateItemsOrder();
+    });
 
-      if ((clientX === null || clientY === null) && typeof document !== 'undefined') {
-        const helper = document.querySelector('.sortable-fallback');
-        if (helper) {
-          const r = helper.getBoundingClientRect();
-          clientX = r.left + r.width / 2;
-          clientY = r.top + r.height / 2;
+    // --- CLICK ---
+    div.addEventListener('click', e => {
+      if (e.target.classList.contains('delete-btn')) {
+        e.stopPropagation();
+        deleteIcon(index);
+      } else {
+        const url = item.linkUrl || item.url;
+        if (url) {
+          window.location.href = url.startsWith('http') ? url : `https://${url}`;
         }
       }
-      if (clientX === null || clientY === null) return;
-      const rect = trashZone.getBoundingClientRect();
-      const checkOver = (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom);
-      if (checkOver !== isOverTrash) {
-        isOverTrash = checkOver;
-        if (isOverTrash) {
-          trashZone.classList.add('trash-active');
-          trashZone.innerText = "🗑️ Відпустіть!";
-        } else {
-          trashZone.classList.remove('trash-active');
-          trashZone.innerText = "🗑️ Видалити";
-        }
-      }
-    },
+    });
 
-    onEnd: (evt) => {
-      if (trashZone) {
-        trashZone.classList.remove('trash-visible', 'trash-active');
-        trashZone.innerText = "🗑️";
-      }
-
-
-      let isDeleted = false;
-      if (isOverTrash) {
-        if (confirm('Видалити цю іконку?')) {
-          const itemEl = evt.item;
-          const idToDelete = itemEl && itemEl.dataset ? itemEl.dataset.id : null;
-          if (idToDelete) {
-            state.items = state.items.filter(i => i.id != idToDelete);
-          } else {
-            state.items.splice(evt.oldIndex, 1);
-          }
-          itemEl && itemEl.remove();
-          saveState();
-          isDeleted = true;
-        } else {
-          renderBoard();
-        }
-      }
-
-      if (!isDeleted) {
-        const newOrderIds = Array.from(boardElement.children).map(el => el.dataset.id);
-        if (state.items[0] && state.items[0].id !== undefined) {
-          const reordered = [];
-          newOrderIds.forEach(id => {
-            const it = state.items.find(x => String(x.id) === String(id));
-            if (it) reordered.push(it);
-          });
-          state.items = reordered;
-        } else {
-          const moved = state.items.splice(evt.oldIndex, 1)[0];
-          state.items.splice(evt.newIndex, 0, moved);
-        }
-        saveState();
-      }
-    }
+    board.appendChild(div);
   });
 }
+
+function updateItemsOrder() {
+  const board = document.getElementById('board');
+  const children = Array.from(board.children);
+  const newItems = [];
+
+  children.forEach(child => {
+    const oldIndex = parseInt(child.dataset.index);
+    if (!isNaN(oldIndex) && state.items[oldIndex]) {
+      newItems.push(state.items[oldIndex]);
+    }
+  });
+
+  state.items = newItems;
+  saveState();
+  renderBoard(); 
+}
+
+function deleteIcon(index) {
+  state.items.splice(index, 1);
+  saveState();
+  renderBoard();
+}
+
 
 function initMusicPlayer() {
   if (!musicPlayer) return;
@@ -1118,7 +1060,7 @@ function initMusicPlayer() {
 
 initDB().then(()=>{ 
   loadState(); 
-  setTimeout(initSortable,80); 
+  // тт
   initMusicPlayer();
   checkForUpdates(); 
 });
@@ -1272,3 +1214,33 @@ query.addEventListener('blur', () => {
   }, 150);
 });
 
+// Обробка кліку коліщатком (Middle Click) на дошці з іконками
+board.addEventListener('mousedown', (e) => {
+  // Перевіряємо, чи натиснуто середню кнопку миші (коліщатко) - код 1
+  if (e.button === 1) { 
+    // Запобігаємо стандартній поведінці (появі режиму автопрокрутки)
+    e.preventDefault(); 
+    
+    // Шукаємо елемент іконки, по якому клікнули
+    const iconWrapper = e.target.closest('.icon-wrapper');
+    
+    if (iconWrapper) {
+      // Отримуємо індекс іконки
+      const index = iconWrapper.dataset.index;
+      
+      // Перевіряємо, чи є такий елемент у збереженому стані
+      if (index !== undefined && state.items[index]) {
+        const item = state.items[index];
+        const url = item.linkUrl || item.url;
+        
+        if (url) {
+          // Додаємо протокол https://, якщо його немає
+          const targetUrl = url.startsWith('http') ? url : `https://${url}`;
+          
+          // Відкриваємо посилання у новому вікні/вкладці
+          window.open(targetUrl, '_blank');
+        }
+      }
+    }
+  }
+});
