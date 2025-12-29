@@ -163,6 +163,12 @@
     justify-items: center;
     z-index:6;
   }
+
+.icon-wrapper.dragging {
+  opacity: 0.001; 
+  pointer-events: none; 
+}
+  
   .icon-wrapper {
     display: flex;
     justify-content: center;
@@ -482,8 +488,19 @@
     flex: 1;
     width: auto;
   }
+/* текст в плеєрі */
+/*#music-title, #music-artist. можете під свій смак підлаштувати  */
+  #music-title {
+  font-size: 0.7em; 
+  font-weight: bold;
+  white-space: nowrap;
+}
 
-
+#music-artist {
+  font-size: 0.6em; 
+  white-space: nowrap;
+  opacity: 0.7;
+}
  
   /* --- СМІТНИК(в процесі) --- */ 
   #trash-zone {
@@ -550,29 +567,44 @@
     box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
   }
 
-  /* --- СТИЛІ ПЕРЕТЯГУВАННЯ --- */
+/* основа іконкі */
+  .sortable-drag {
+    opacity: 0.8 !important;
+    transform: scale(1.1);
+    cursor: grabbing;
+    z-index: 100000;
+    background: rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+  }
 
-.sortable-drag {
-  opacity: 0.9 !important; 
-  transform: scale(1.1);   
-  cursor: grabbing;
-  z-index: 100000;        
-  background: transparent; 
-}
+  /* фантом */
+  .sortable-ghost {
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none;
+  }
 
+  /* Елемент, який ми щойно натиснули (вибраний) */
+  .sortable-chosen {
+    background: rgba(255, 255, 255, 0.05) !important;
+  }
 
-.sortable-ghost {
-  opacity: 0.4 !important; 
-  background: rgba(255, 255, 255, 0.1); 
-  border-radius: 12px;
-}
+  /* Клас для плавності, якщо використовується fallback */
+  .sortable-fallback {
+    opacity: 1 !important;
+  }
 
-.sortable-fallback {
-  opacity: 1 !important;
-}
-
-  .trash-icon { font-size: 22px; line-height: 1; }
-  .sortable-chosen { opacity: 0 !important; visibility: hidden !important; }
+  /* Стиль іконки смітника всередині зони */
+  .trash-icon { 
+    font-size: 22px; 
+    line-height: 1; 
+    margin-right: 8px;
+  }
 </style>
 </head>
 <body>

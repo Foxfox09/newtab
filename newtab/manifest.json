@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "пошукач",
-  "version": "1.2.029.0",
+  "version": "1.2.040.0",
   "description": "нова вкладка.",
   "background": {
     "service_worker": "background.js"
@@ -49,4 +49,3 @@
     }
   ]
 }
-
