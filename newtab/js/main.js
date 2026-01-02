@@ -656,6 +656,29 @@ function runCmd(raw) {
     return;
   }
 
+if (cmd === '//addicon') {
+      const url = parts[1];
+      if (url) {
+        let finalUrl = url;
+        if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+          finalUrl = 'https://' + finalUrl;
+        }
+        
+        state.items.push({
+          url: finalUrl,
+          img: `https://www.google.com/s2/favicons?sz=128&domain_url=${encodeURIComponent(finalUrl)}`
+        });
+        
+        saveState();   
+        renderBoard(); 
+        query.value = '';
+      } else {
+        alert('Вкажіть URL сайту, наприклад: //addicon google.com');
+        executed = false;
+      }
+      return;
+    }
+
   if (cmd === '//font') {
     const val = parts.slice(1).join(' ').trim();
       if (!val) {
@@ -1216,28 +1239,21 @@ query.addEventListener('blur', () => {
 
 // Обробка кліку коліщатком (Middle Click) на дошці з іконками
 board.addEventListener('mousedown', (e) => {
-  // Перевіряємо, чи натиснуто середню кнопку миші (коліщатко) - код 1
   if (e.button === 1) { 
-    // Запобігаємо стандартній поведінці (появі режиму автопрокрутки)
     e.preventDefault(); 
-    
-    // Шукаємо елемент іконки, по якому клікнули
+  
     const iconWrapper = e.target.closest('.icon-wrapper');
     
     if (iconWrapper) {
-      // Отримуємо індекс іконки
+   
       const index = iconWrapper.dataset.index;
-      
-      // Перевіряємо, чи є такий елемент у збереженому стані
+
       if (index !== undefined && state.items[index]) {
         const item = state.items[index];
         const url = item.linkUrl || item.url;
         
         if (url) {
-          // Додаємо протокол https://, якщо його немає
           const targetUrl = url.startsWith('http') ? url : `https://${url}`;
-          
-          // Відкриваємо посилання у новому вікні/вкладці
           window.open(targetUrl, '_blank');
         }
       }
