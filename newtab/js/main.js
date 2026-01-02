@@ -642,135 +642,87 @@ function runCmd(raw) {
   const cmd = parsed.cmd;
   let executed = true;
 
-  // Обробка шрифтових команд
+  // 1. Команда //fontsize
   if (cmd === '//fontsize') {
     const val = parts[1];
     if (val) {
-      // Якщо ввели просто число, додаємо px, інакше лишаємо як є
       const size = isNaN(parseFloat(val)) ? val : val + 'px';
       state.fontSize = size;
       saveState();
       applyFontSettings();
-      query.value = '';
     }
-    return;
-  }
-
-if (cmd === '//addicon') {
-      const url = parts[1];
-      if (url) {
-        let finalUrl = url;
-        if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-          finalUrl = 'https://' + finalUrl;
-        }
-        
-        state.items.push({
-          url: finalUrl,
-          img: `https://www.google.com/s2/favicons?sz=128&domain_url=${encodeURIComponent(finalUrl)}`
-        });
-        
-        saveState();   
-        renderBoard(); 
-        query.value = '';
-      } else {
-        alert('Вкажіть URL сайту, наприклад: //addicon google.com');
-        executed = false;
-      }
-      return;
-    }
-
-  if (cmd === '//font') {
+  } 
+  
+  // 2. Команда //font
+  else if (cmd === '//font') {
     const val = parts.slice(1).join(' ').trim();
-      if (!val) {
-    // Вибір файлу шрифту
-    uploadContext = 'font';
-    fileInput.accept = '.ttf,.otf,.woff,.woff2';
-    fileInput.click();
-  } else {
-    if (val.startsWith('http')) {
-      // URL шрифту
-      state.fontData = val;
-      state.customFontUrl = val;
-      state.fontFamily = 'CustomUIFont';
-    } else {
-      // Назва системного шрифту
+    
+    // Перевірка на скидання 
+    if (['default', 'reset', '0', 'stock'].includes(val)) {
       state.fontData = null;
       state.customFontUrl = null;
-      state.fontFamily = val;
-    }
-
-    applyFontSettings();
-    saveState();
-    query.value = '';
-  }
-  return;
-}
-   // === СКИДАННЯ ШРИФТУ ДО ЗАВОДСЬКОГО ===
-  if (val === 'default' || val === 'reset' || val === '0' || val === 'stock') {
-    state.fontData = null;
-    state.customFontUrl = null;
-    state.fontFamily =
-        'Inter, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
-    state.fontSize = '16px'; 
-    applyFontSettings();
-    saveState();
-    alert('Шрифт повернуто до стандартного!');
-    query.value = '';
-    return;
-  }
-
-  if (cmd === '//bg') {
-    const url = parts[1];
-    if (!url) {
-      uploadContext = 'bg';
-      fileInput.accept = 'image/*,video/mp4';
-      fileInput.click();
-    }
-    else {
-      state.bgType = url.toLowerCase().endsWith('.mp4') ? 'video' : 'image';
-      state.bgData = url; applyBackground(); saveState();
-    }
-  } else if (cmd === '//addicon') {
-    let domain = parts[1];
-    if (!domain) { alert('Вкажіть URL сайту після //addicon'); executed = false; }
-    else {
-      const linkUrl = domain.startsWith('http') ? domain : 'https://' + domain;
-      const cleanDomain = new URL(linkUrl).hostname;
-      const iconUrl = `https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=128`;
-      const it = { type: 'icon', linkUrl, iconUrl, id: Date.now() };
-      state.items.push(it); renderBoard(); saveState();
-    }
-  } else if (cmd === '//save') { saveState(); alert('Збережено!'); }
-  else if (cmd === '//clear') {
-    state.bgType = null; state.bgData = null; applyBackground(); state.items = []; renderBoard(); dbClear();
-  } else if (cmd === '//style') {
-    const styleNum = parts[1];
-    if (styleNum === '1' || styleNum === '2') {
-      state.style = styleNum;
-      applyStyle();
+      state.fontFamily = 'Inter, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+      state.fontSize = '16px'; 
+      applyFontSettings();
       saveState();
-      alert(`Стиль змінено на: ${styleNum}`);
-    } else {
-      alert('Використання: //style 1 або //style 2');
-      executed = false;
+      alert('Шрифт повернуто до стандартного!');
+    } 
+    else if (!val) {
+      uploadContext = 'font';
+      fileInput.accept = '.ttf,.otf,.woff,.woff2';
+      fileInput.click();
+    } 
+    else {
+      if (val.startsWith('http')) {
+        state.fontData = val;
+        state.customFontUrl = val;
+        state.fontFamily = 'CustomUIFont';
+      } else {
+        state.fontData = null;
+        state.customFontUrl = null;
+        state.fontFamily = val;
+      }
+      applyFontSettings();
+      saveState();
     }
-  } else if (cmd === '//togglebutton') {
+  }
+
+  // 3. Команда //addicon
+  else if (cmd === '//addicon') {
+    let url = parts[1];
+    if (!url) {
+      alert('Вкажіть URL сайту, наприклад: //addicon google.com');
+      executed = false;
+    } else {
+      if (!url.startsWith('http')) url = 'https://' + url;
+      state.items.push({
+        url: url,
+        img: `https://www.google.com/s2/favicons?sz=128&domain_url=${encodeURIComponent(url)}`
+      });
+      saveState();
+      renderBoard();
+    }
+  }
+
+  // 4. Команда //player (увімкнення/вимкнення)
+  else if (cmd === '//player') {
     const arg = parts[1];
     if (arg === 'on') {
-        state.isButtonVisible = true;
-        alert('Кнопку "Виконати" увімкнено.');
+      state.isPlayerVisible = true;
     } else if (arg === 'off') {
-        state.isButtonVisible = false;
-        alert('Кнопку "Виконати" вимкнено.');
+      state.isPlayerVisible = false;
     } else {
-        alert('Використання: //togglebutton on або //togglebutton off');
-        executed = false;
+      alert('Використання: //player on або //player off');
+      executed = false;
     }
     if (executed) {
-        applyButtonVisibility();
-        saveState();
+      applyPlayerVisibility();
+      saveState();
     }
-  } else if (cmd === '//play') {
+  }
+
+  // 5. Команда //play (пошук музики)
+  else if (cmd === '//play') {
     const songQuery = parts.slice(1).join(' ');
     if (!state.isPlayerVisible) {
       state.isPlayerVisible = true;
@@ -778,35 +730,42 @@ if (cmd === '//addicon') {
     }
     saveState();
     
-    const searchUrl = `https://music.youtube.com/search?q=${encodeURIComponent(songQuery)}`;
-    const homeUrl = 'https://music.youtube.com/';
-    const targetUrl = songQuery ? searchUrl : homeUrl;
+    const targetUrl = songQuery 
+      ? `https://music.youtube.com/search?q=${encodeURIComponent(songQuery)}`
+      : 'https://music.youtube.com/';
 
-    //YT Music tab
-    chrome.tabs.query({ url: "*://music.youtube.com/*" }, (tabs) => {
-      if (tabs.length > 0) {
-        chrome.tabs.update(tabs[0].id, { url: targetUrl, active: true });
-      } else {
-        chrome.tabs.create({ url: targetUrl });
-      }
-    });
-  } else if (cmd === '//player') {
-    const arg = parts[1];
-    if (arg === 'on') {
-        state.isPlayerVisible = true;
-        alert('Плеєр увімкнено.');
-    } else if (arg === 'off') {
-        state.isPlayerVisible = false;
-        alert('Плеєр вимкнено.');
+    if (typeof chrome !== 'undefined' && chrome.tabs) {
+      chrome.tabs.query({ url: "*://music.youtube.com/*" }, (tabs) => {
+        if (tabs.length > 0) {
+          chrome.tabs.update(tabs[0].id, { url: targetUrl, active: true });
+        } else {
+          chrome.tabs.create({ url: targetUrl });
+        }
+      });
     } else {
-        alert('Використання: //player on або //player off');
-        executed = false;
+      window.open(targetUrl, '_blank');
     }
-    if (executed) {
-        applyPlayerVisibility();
-        saveState();
+  }
+
+  // 6. Інші команди (bg, save, clear, style)
+  else if (cmd === '//bg') {
+    const url = parts[1];
+    if (!url) {
+      uploadContext = 'bg';
+      fileInput.accept = 'image/*,video/mp4';
+      fileInput.click();
+    } else {
+      state.bgType = url.toLowerCase().endsWith('.mp4') ? 'video' : 'image';
+      state.bgData = url; 
+      applyBackground(); 
+      saveState();
     }
-  } else {
+  } 
+  else if (cmd === '//save') { saveState(); alert('Збережено!'); }
+  else if (cmd === '//clear') {
+    state.bgType = null; state.bgData = null; applyBackground(); state.items = []; renderBoard(); dbClear();
+  }
+  else {
     alert('Невідома команда');
     executed = false;
   }
