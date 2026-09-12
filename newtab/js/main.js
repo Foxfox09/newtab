@@ -747,7 +747,7 @@ function runCmd(raw) {
     }
   }
 
-  // 6. Інші команди (bg, save, clear, style)
+  // 6. bg
   else if (cmd === '//bg') {
     const url = parts[1];
     if (!url) {
@@ -763,8 +763,26 @@ function runCmd(raw) {
   } 
   else if (cmd === '//save') { saveState(); alert('Збережено!'); }
   else if (cmd === '//clear') {
-    state.bgType = null; state.bgData = null; applyBackground(); state.items = []; renderBoard(); dbClear();
+    state.bgType = null;
+    state.bgData = null; 
+    applyBackground(); 
+    state.items = []; 
+    renderBoard(); 
+    dbClear();
   }
+    // style
+else if (cmd === '//style') {
+    const val = parts[1];
+    if (val === '1' || val === '2') {
+      state.style = val;
+      applyStyle();
+      saveState();
+    } else {
+      alert('Використання: //style 1 або //style 2');
+      executed = false;
+    }
+  }
+
   else {
     alert('Невідома команда');
     executed = false;
